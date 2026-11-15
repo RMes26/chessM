@@ -1,14 +1,14 @@
 import { Chess } from '../lib/chess.js';
-import { Board } from './board.js?v=7';
-import { Engine, botMove } from './engine.js?v=7';
-import { analyseGame, CLASSES, evalText } from './analysis.js?v=7';
-import { play, sound, unlockAudio } from './sound.js?v=7';
-import { Online } from './online.js?v=7';
-import { CATS, catOf, newRating, update as glicko, shown, provisional } from './rating.js?v=7';
-import { confetti, shake } from './fx.js?v=7';
-import { createPuzzles, currentStreak } from './puzzles.js?v=7';
-import { detect, speak, callouts } from './callout.js?v=7';
-import { ic, pieceImg } from './ui.js?v=7';
+import { Board } from './board.js?v=8';
+import { Engine, botMove } from './engine.js?v=8';
+import { analyseGame, CLASSES, evalText } from './analysis.js?v=8';
+import { play, sound, unlockAudio } from './sound.js?v=8';
+import { Online } from './online.js?v=8';
+import { CATS, catOf, newRating, update as glicko, shown, provisional } from './rating.js?v=8';
+import { confetti, shake } from './fx.js?v=8';
+import { createPuzzles, currentStreak } from './puzzles.js?v=8';
+import { detect, speak, callouts } from './callout.js?v=8';
+import { ic, pieceImg } from './ui.js?v=8';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -854,7 +854,15 @@ let installEvt = null;
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 function renderInstall() { $('#installBtn').classList.toggle('hidden', standalone); }
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; renderInstall(); });
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  // Quand une nouvelle version prend le relais : rechargement automatique (seulement à l'accueil, jamais en partie)
+  const hadController = !!navigator.serviceWorker.controller;
+  let pendingReload = false;
+  const tryReload = () => { if (pendingReload && document.body.dataset.screen === 'home' && $('#modal').classList.contains('hidden')) location.reload(); };
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) { pendingReload = true; tryReload(); } });
+  document.addEventListener('click', () => setTimeout(tryReload, 50));
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
+}
 renderInstall();
 
 if (location.search.includes('debug')) window.__dbg = { get G() { return G; }, get PZ() { return puzzles.state; } };
