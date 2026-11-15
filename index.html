@@ -6,8 +6,13 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#262421">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Échecs">
 <title>Échecs</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E♞%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="lib/pieces.css">
 <link rel="stylesheet" href="css/style.css">
 <script src="lib/peerjs.min.js" defer></script>
@@ -29,10 +34,18 @@
         <span class="avatar big" id="meAvatar"></span>
         <div class="pinfo">
           <input id="nameInput" maxlength="16" aria-label="Pseudo" title="Clique pour changer ton pseudo">
-          <div class="elo-big"><span id="eloBig"></span> <small>Elo</small></div>
+          <div class="elo-big"><span id="eloBig"></span> <small id="eloCat"></small></div>
           <div class="stats" id="stats"></div>
         </div>
         <canvas id="eloSpark" height="40"></canvas>
+        <div class="ratings" id="ratings"></div>
+        <button class="btn wide install hidden" id="installBtn" data-act="install">📲 Installer l'appli sur l'écran d'accueil</button>
+      </div>
+
+      <div class="card puzzles">
+        <h2>🧩 Problèmes</h2>
+        <p class="muted">Plus de 3 500 problèmes, du débutant au maître.</p>
+        <div class="pz-modes" id="pzModes"></div>
       </div>
 
       <div class="card settings">
@@ -54,6 +67,20 @@
       </div>
     </div>
     <footer class="foot"><a href="credits.html">Crédits &amp; licences</a></footer>
+  </section>
+
+  <section id="puzzle" class="screen hidden">
+    <div class="game-layout">
+      <div class="board-col">
+        <div class="pz-top" id="pzTop"></div>
+        <div class="board-row"><div id="pboard"></div></div>
+        <div class="pz-status" id="pzStatus"></div>
+      </div>
+      <aside class="side">
+        <div class="actions" id="pzActions"></div>
+        <div class="card" id="pzPanel"></div>
+      </aside>
+    </div>
   </section>
 
   <section id="game" class="screen hidden">

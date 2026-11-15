@@ -4,6 +4,9 @@ import { Engine, botMove } from './engine.js';
 import { analyseGame, CLASSES, evalText } from './analysis.js';
 import { play, sound, unlockAudio } from './sound.js';
 import { Online } from './online.js';
+import { CATS, catOf, newRating, update as glicko, shown, provisional } from './rating.js';
+import { confetti, shake } from './fx.js';
+import { createPuzzles, currentStreak } from './puzzles.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -37,12 +40,21 @@ const store = (() => {
   const KEY = 'echecs.v1';
   let d = {};
   try { d = JSON.parse(localStorage.getItem(KEY)) || {}; } catch {}
-  d = { name: 'Joueur', elo: 1000, games: 0, w: 0, d: 0, l: 0, hist: [1000], tc: '10+0', color: 'w', theme: 'bois', sound: true, ...d };
+  d = { name: 'Joueur', elo: 1000, games: 0, w: 0, d: 0, l: 0, tc: '10+0', color: 'w', theme: 'bois', sound: true, ...d };
+  if (!d.ratings) { // migration de l'ancien Elo simple vers Glicko-2
+    d.ratings = {};
+    for (const k of Object.keys(CATS)) d.ratings[k] = k === 'puzzle' ? newRating(1000) : newRating(d.elo, d.games ? 180 : 250);
+  }
+  for (const k of Object.keys(CATS)) d.ratings[k] ||= newRating(1000);
+  d.daily ||= { last: null, streak: 0, best: 0, done: {} };
+  d.best ||= {};
   return { d, save() { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch {} } };
 })();
+store.save();
 sound.enabled = store.d.sound;
 
 const engine = new Engine();
+const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const board = new Board($('#board'), { onMove: mv => { if (canPlay()) playMove(mv); } });
 let G = null;        // partie en cours
 let online = null;   // connexion ami
@@ -71,19 +83,27 @@ function fmtClock(ms) {
   const m = Math.floor(s / 60), r = Math.floor(s % 60);
   return `${m}:${String(r).padStart(2, '0')}`;
 }
-function eloDelta(me, opp, score, games) {
-  const K = games < 20 ? 40 : 20;
-  return Math.round(K * (score - 1 / (1 + 10 ** ((opp - me) / 400))));
-}
+const curCat = () => catOf(tcOf(store.d.tc));
+const rtxt = p => shown(p) + (provisional(p) ? '?' : '');
 
 // ---------- Accueil ----------
 function renderHome() {
   const d = store.d;
-  $('#eloChip').textContent = `${d.elo} Elo`;
+  const cr = d.ratings[curCat()];
+  $('#eloChip').textContent = `${CATS[curCat()].icon} ${rtxt(cr)}`;
   $('#btnSound').textContent = d.sound ? '🔊' : '🔇';
   $('#meAvatar').textContent = d.name[0]?.toUpperCase() || '?';
   if (document.activeElement !== $('#nameInput')) $('#nameInput').value = d.name;
-  $('#eloBig').textContent = d.elo;
+  $('#eloBig').textContent = rtxt(cr);
+  $('#eloCat').textContent = CATS[curCat()].label;
+  $('#ratings').innerHTML = Object.keys(CATS).map(k => `<div class="rtile ${k === curCat() ? 'on' : ''}"><span>${CATS[k].icon} ${CATS[k].label}</span><b>${rtxt(d.ratings[k])}</b></div>`).join('');
+  const st = currentStreak(d.daily);
+  $('#pzModes').innerHTML = [
+    ['daily', '📅', 'Problème du jour', d.daily.done[todayKey()] ? "✅ Fait aujourd'hui" : `🔥 Série : ${st} jour${st > 1 ? 's' : ''}`],
+    ['rated', '🎯', 'Entraînement', `Classé · ${rtxt(d.ratings.puzzle)}`],
+    ['survival', '❤️', 'Survie', `3 vies · record ${d.best.survival || 0}`],
+    ['chrono', '⏱️', 'Contre-la-montre', `3 min · record ${d.best.chrono || 0}`]
+  ].map(([m, i, t, s]) => `<button class="pzmode" data-act="pz" data-mode="${m}"><span class="pzi">${i}</span><b>${t}</b><small>${s}</small></button>`).join('');
   $('#stats').innerHTML = `<span class="w">${d.w} V</span> · <span class="d">${d.d} N</span> · <span class="l">${d.l} D</span>`;
   $('#tcChips').innerHTML = TCS.map(t => `<button class="chip-btn ${d.tc === t.id ? 'on' : ''}" data-act="tc" data-v="${t.id}"><b>${t.label}</b><small>${t.sub}</small></button>`).join('');
   $('#colorChips').innerHTML = COLORS.map(c => `<button class="chip-btn ${d.color === c.id ? 'on' : ''}" data-act="color" data-v="${c.id}">${c.label}</button>`).join('');
@@ -94,7 +114,7 @@ function renderHome() {
   drawSpark();
 }
 function drawSpark() {
-  const cv = $('#eloSpark'), h = store.d.hist;
+  const cv = $('#eloSpark'), h = store.d.ratings[curCat()].hist;
   const w = cv.clientWidth || 200, H = 40, dpr = devicePixelRatio || 1;
   cv.width = w * dpr; cv.height = H * dpr;
   const x = cv.getContext('2d'); x.scale(dpr, dpr); x.clearRect(0, 0, w, H);
@@ -115,7 +135,7 @@ function newGame(o) {
     chess: c, startFen: c.fen(), tc: { base: tc.base, inc: tc.inc, label: tc.label },
     clock: { w: tc.base * 1000, b: tc.base * 1000 }, clockRunning: false, lastTick: 0,
     over: false, result: null, reason: '', viewPly: 0, analysis: null, analysing: false,
-    rated: o.mode === 'bot', thinking: false, eloDelta: null, connected: o.mode === 'online'
+    rated: o.mode === 'bot', cat: catOf(tc), thinking: false, eloDelta: null, connected: o.mode === 'online'
   };
   board.setOrientation(G.myColor);
   board.setPosition(G.startFen, {});
@@ -201,14 +221,15 @@ function endGame(result, reason) {
   G.over = true; G.result = result; G.reason = reason; G.thinking = false;
   if (G.rated && result !== 'none') {
     const d = store.d, score = result === 'draw' ? 0.5 : result === G.myColor ? 1 : 0;
-    G.eloBefore = d.elo;
-    G.eloDelta = eloDelta(d.elo, G.bot.elo, score, d.games);
-    d.elo = Math.max(100, d.elo + G.eloDelta);
+    const R = d.ratings[G.cat];
+    G.eloBefore = shown(R);
+    G.eloDelta = glicko(R, G.bot.elo, 60, score);
     d.games++; d[score === 1 ? 'w' : score === 0 ? 'l' : 'd']++;
-    d.hist.push(d.elo); if (d.hist.length > 60) d.hist.shift();
     store.save(); renderHome();
   }
-  play('end');
+  const won = result === G.myColor;
+  play(won ? 'win' : result === 'draw' || result === 'none' ? 'end' : 'lose');
+  if (won) setTimeout(() => confetti(), 300);
   render();
   setTimeout(showEndModal, 500);
 }
@@ -221,7 +242,7 @@ function showEndModal() {
   let elo = '';
   if (G.eloDelta != null) {
     const d = G.eloDelta, cls = d > 0 ? 'up' : d < 0 ? 'down' : '';
-    elo = `<div class="elo-change">${G.eloBefore} → <b>${store.d.elo}</b> <span class="${cls}">${d > 0 ? '+' : ''}${d}</span></div>`;
+    elo = `<div class="elo-change">${CATS[G.cat].icon} ${CATS[G.cat].label} : ${G.eloBefore} → <b>${shown(store.d.ratings[G.cat])}</b> <span class="${cls}">${d > 0 ? '+' : ''}${d}</span></div>`;
   }
   const canRematch = G.mode === 'bot' || (G.mode === 'online' && G.connected);
   modal(`<div class="end-icon">${icon}</div><h2>${title}</h2><p class="muted">${esc(G.reason)}</p>${elo}
@@ -296,7 +317,7 @@ function renderBars() {
   const cnt = material(fenAt(G.viewPly));
   for (const [id, col] of [['#barTop', top], ['#barBottom', bottom]]) {
     const me = col === G.myColor;
-    const info = me ? { name: store.d.name, elo: G.mode === 'bot' ? store.d.elo : null, color: '#5d9cec' } : G.opp;
+    const info = me ? { name: store.d.name, elo: G.mode === 'bot' ? rtxt(store.d.ratings[G.cat]) : null, color: '#5d9cec' } : G.opp;
     const active = !G.over && G.chess.turn() === col;
     const think = !me && G.thinking ? '<span class="thinking"><i></i><i></i><i></i></span>' : '';
     $(id).innerHTML = `<span class="avatar" style="background:${info.color}">${esc(info.name[0]?.toUpperCase() || '?')}</span>
@@ -429,6 +450,8 @@ function goto(p) {
   else if (p === cur - 1) o = { move: h[cur - 1], reverse: true };
   G.viewPly = p;
   render(o);
+  const c = G.analysis?.cls[p - 1];
+  if (o.move && !o.reverse && c && (c.cls === 'blunder' || c.cls === 'miss')) shake($('#board'));
 }
 
 // ---------- Ami en ligne ----------
@@ -551,7 +574,7 @@ function goHome() {
     if (!confirm('Quitter la partie ? Elle sera comptée comme abandonnée.')) return;
     resign(true);
   }
-  closeOnline(); closeModal();
+  closeOnline(); closeModal(); puzzles.close();
   G = null;
   history.replaceState(null, '', location.pathname);
   renderHome(); showScreen('home');
@@ -597,6 +620,12 @@ const ACT = {
   rematchYes: () => { closeModal(); online?.send({ t: 'rematch-yes' }); if (online?.isHost && G) hostStart(other(G.myColor), G.opp.name); },
   rematchNo: () => { closeModal(); online?.send({ t: 'rematch-no' }); },
   review: () => { closeModal(); startAnalysis(); },
+  pz: b => { if (G && !G.over && G.chess.history().length >= 2) return goHome(); closeModal(); closeOnline(); G = null; puzzles.open(b.dataset.mode); },
+  pzHint: () => puzzles.hint(),
+  pzSolution: () => puzzles.giveUp(),
+  pzNext: () => puzzles.next(),
+  pzSkip: () => puzzles.skip(),
+  install: () => { if (installEvt) { installEvt.prompt(); installEvt = null; renderInstall(); } else modal(`<h2>📲 Installer l'appli</h2><p>Sur iPhone : touche <b>Partager</b> <span style="font-size:20px">⎙</span> puis <b>« Sur l'écran d'accueil »</b>.</p><p>Sur Android : menu <b>⋮</b> puis <b>« Installer l'application »</b>.</p><button class="btn" data-act="closeModal">OK</button>`); },
   closeModal
 };
 
@@ -613,7 +642,7 @@ document.addEventListener('keydown', e => {
   if (k) { e.preventDefault(); ACT[k](); }
 });
 $('#nameInput').addEventListener('change', e => { store.d.name = cleanName(e.target.value); store.save(); renderHome(); });
-$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && G?.over) closeModal(); });
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && (G?.over || puzzles.active)) closeModal(); });
 window.addEventListener('resize', () => { if (G?.analysis) drawGraph(); drawSpark(); });
 window.addEventListener('hashchange', joinFromHash);
 
@@ -634,7 +663,17 @@ setInterval(() => {
   renderClocks();
 }, 100);
 
-if (location.search.includes('debug')) window.__dbg = { get G() { return G; } };
+const puzzles = createPuzzles({ $, store, toast, showScreen, modal, onChange: () => renderHome() });
+
+// Appli installable (PWA)
+let installEvt = null;
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+function renderInstall() { $('#installBtn').classList.toggle('hidden', standalone); }
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; renderInstall(); });
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+renderInstall();
+
+if (location.search.includes('debug')) window.__dbg = { get G() { return G; }, get PZ() { return puzzles.state; } };
 
 applyTheme();
 renderHome();

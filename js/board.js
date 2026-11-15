@@ -79,11 +79,15 @@ export class Board {
         if (!o.reverse) {
           const capSq = m.flags.includes('e') ? m.to[0] + m.from[1] : to;
           const cap = this.pieces.get(capSq);
-          if (cap && cap !== el) { cap.remove(); this.pieces.delete(capSq); }
+          if (cap && cap !== el) { this.pieces.delete(capSq); cap.classList.add('captured'); setTimeout(() => cap.remove(), 260); }
         }
         this.pieces.delete(from);
         const old = this.pieces.get(to); if (old && old !== el) old.remove();
         this.pieces.set(to, el); this.place(el, to);
+        if (!o.reverse) {
+          clearTimeout(el._land);
+          el._land = setTimeout(() => { el.classList.add('land'); setTimeout(() => el.classList.remove('land'), 220); }, el.classList.contains('snap') ? 0 : 160);
+        }
         if (m.flags.includes('k') || m.flags.includes('q')) {
           const r = m.from[1], k = m.flags.includes('k');
           let rf = (k ? 'h' : 'a') + r, rt = (k ? 'f' : 'd') + r;
@@ -191,6 +195,11 @@ export class Board {
       const done = v => { this.promoEl.classList.add('hidden'); this.promoEl.onpointerdown = null; res(v); };
       this.promoEl.onpointerdown = e => { e.stopPropagation(); e.preventDefault(); done(e.target.dataset?.p || null); };
     });
+  }
+
+  flash(sq, cls, ms = 1000) {
+    const d = this.sqEls[sq]; if (!d) return;
+    d.classList.add(cls); setTimeout(() => d.classList.remove(cls), ms);
   }
 
   setArrows(list) { this.arrows = list || []; this.drawArrows(); }
