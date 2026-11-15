@@ -1,13 +1,14 @@
 import { Chess } from '../lib/chess.js';
-import { Board } from './board.js?v=5';
-import { Engine, botMove } from './engine.js?v=5';
-import { analyseGame, CLASSES, evalText } from './analysis.js?v=5';
-import { play, sound, unlockAudio } from './sound.js?v=5';
-import { Online } from './online.js?v=5';
-import { CATS, catOf, newRating, update as glicko, shown, provisional } from './rating.js?v=5';
-import { confetti, shake } from './fx.js?v=5';
-import { createPuzzles, currentStreak } from './puzzles.js?v=5';
-import { detect, speak, callouts } from './callout.js?v=5';
+import { Board } from './board.js?v=6';
+import { Engine, botMove } from './engine.js?v=6';
+import { analyseGame, CLASSES, evalText } from './analysis.js?v=6';
+import { play, sound, unlockAudio } from './sound.js?v=6';
+import { Online } from './online.js?v=6';
+import { CATS, catOf, newRating, update as glicko, shown, provisional } from './rating.js?v=6';
+import { confetti, shake } from './fx.js?v=6';
+import { createPuzzles, currentStreak } from './puzzles.js?v=6';
+import { detect, speak, callouts } from './callout.js?v=6';
+import { ic, pieceImg } from './ui.js?v=6';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -34,7 +35,10 @@ const TCS = [
   { id: '10+0', label: '10+0', sub: 'Rapide', base: 600, inc: 0 },
   { id: '15+10', label: '15+10', sub: 'Rapide', base: 900, inc: 10 }
 ];
-const COLORS = [{ id: 'w', label: '♔ Blancs' }, { id: 'r', label: '🎲 Aléatoire' }, { id: 'b', label: '♚ Noirs' }];
+const COLORS = [{ id: 'w', label: `${pieceImg('k', 'w')} Blancs` }, { id: 'r', label: `<i class="half" aria-hidden="true"></i> Au hasard` }, { id: 'b', label: `${pieceImg('k', 'b')} Noirs` }];
+const BOT_PIECE = ['p', 'p', 'n', 'n', 'b', 'r', 'q', 'q', 'k'];
+const medal = i => `<span class="medal" style="--tint:${BOTS[i].color}">${pieceImg(BOT_PIECE[i], 'w')}</span>`;
+const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
 const THEMES = [{ id: 'bronze', label: 'Bronze' }, { id: 'bois', label: 'Noyer' }, { id: 'nuit', label: 'Nuit' }, { id: 'marbre', label: 'Marbre' }, { id: 'vert', label: 'Jade' }, { id: 'bleu', label: 'Ardoise' }, { id: 'rubis', label: 'Rubis' }];
 const ACCENTS = [['Or', '#d4af37'], ['Champagne', '#e8cf9a'], ['Rubis', '#e0245e'], ['Grenat', '#b4233c'], ['Émeraude', '#2fbf71'], ['Saphir', '#3b82f6'], ['Améthyste', '#9b6bdf'], ['Cuivre', '#c8784a'], ['Platine', '#cfd6de']];
 const GOOD = ['best', 'brilliant', 'great'];
@@ -59,7 +63,9 @@ sound.enabled = store.d.sound;
 
 const engine = new Engine();
 const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-const board = new Board($('#board'), { onMove: mv => { if (canPlay()) playMove(mv); } });
+const board = new Board($('#board'), { onMove: mv => { if (canPlay()) playMove(mv); }, coordsOut: true });
+const lboard = new Board($('#lboard'), { coordsOut: true });
+lboard.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', {});
 let G = null;        // partie en cours
 let online = null;   // connexion ami
 let hostLink = '';
@@ -78,7 +84,13 @@ function toast(msg, ms = 2600) {
 }
 function modal(html) { $('#modalBox').innerHTML = html; $('#modal').classList.remove('hidden'); }
 function closeModal() { $('#modal').classList.add('hidden'); }
-function showScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('hidden', s.id !== id)); window.scrollTo(0, 0); }
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('hidden', s.id !== id));
+  document.body.dataset.screen = id;
+  // Bouton retour du téléphone : une entrée d'historique pour quitter la partie / les problèmes
+  if (id !== 'home' && history.state?.s !== 'sub') history.pushState({ s: 'sub' }, '');
+  window.scrollTo(0, 0);
+}
 const hexRgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
 const mix = (c, t, to) => c.map((v, i) => Math.round(v + (to[i] - v) * t)).join(',');
 const accent = () => store.d.prefs.accent;
@@ -110,28 +122,40 @@ const rtxt = p => shown(p) + (provisional(p) ? '?' : '');
 function renderHome() {
   const d = store.d;
   const cr = d.ratings[curCat()];
-  $('#eloChip').textContent = `${CATS[curCat()].icon} ${rtxt(cr)}`;
-  $('#btnSound').textContent = d.sound ? '🔊' : '🔇';
+  $('#eloChip').innerHTML = `${ic(CATS[curCat()].icon)}<span>${rtxt(cr)}</span>`;
+  $('#eloChip').title = `Classement ${CATS[curCat()].label}`;
+  $('#btnSound').innerHTML = ic(d.sound ? 'volume-2' : 'volume-x');
+  $('#btnSound').setAttribute('aria-label', d.sound ? 'Couper le son' : 'Activer le son');
+  const tab = d.tab || 'play';
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('hidden', p.dataset.pane !== tab));
+  document.querySelectorAll('.tabbar [data-v]').forEach(b => { const on = b.dataset.v === tab; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   $('#meAvatar').textContent = d.name[0]?.toUpperCase() || '?';
   if (document.activeElement !== $('#nameInput')) $('#nameInput').value = d.name;
   $('#eloBig').textContent = rtxt(cr);
   $('#eloCat').textContent = CATS[curCat()].label;
-  $('#ratings').innerHTML = Object.keys(CATS).map(k => `<div class="rtile ${k === curCat() ? 'on' : ''}"><span>${CATS[k].icon} ${CATS[k].label}</span><b>${rtxt(d.ratings[k])}</b></div>`).join('');
-  const st = currentStreak(d.daily);
+  $('#ratings').innerHTML = Object.keys(CATS).map(k => `<div class="rtile ${k === curCat() ? 'on' : ''}"><span>${ic(CATS[k].icon)} ${CATS[k].label}</span><b>${rtxt(d.ratings[k])}</b></div>`).join('');
+  const st = currentStreak(d.daily), doneToday = d.daily.done[todayKey()];
+  $('#dailyCard').innerHTML = `<div class="daily-text"><span class="daily-day">${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+      <h2>Problème du jour</h2><p class="muted">${doneToday ? 'Fait. Le prochain arrive demain.' : 'Le même pour toute la famille. Réussis-le pour prolonger ta série.'}</p></div>
+    <div class="daily-side"><span class="streak">${ic('flame')}<b>${st}</b><small>${st > 1 ? 'jours de suite' : 'jour de suite'}</small></span>
+      <button class="btn primary" data-act="pz" data-mode="daily">${doneToday ? 'Revoir' : 'Résoudre'}</button></div>`;
   $('#pzModes').innerHTML = [
-    ['daily', '📅', 'Problème du jour', d.daily.done[todayKey()] ? "✅ Fait aujourd'hui" : `🔥 Série : ${st} jour${st > 1 ? 's' : ''}`],
-    ['rated', '🎯', 'Entraînement', `Classé · ${rtxt(d.ratings.puzzle)}`],
-    ['survival', '❤️', 'Survie', `3 vies · record ${d.best.survival || 0}`],
-    ['chrono', '⏱️', 'Contre-la-montre', `3 min · record ${d.best.chrono || 0}`]
-  ].map(([m, i, t, s]) => `<button class="pzmode" data-act="pz" data-mode="${m}"><span class="pzi">${i}</span><b>${t}</b><small>${s}</small></button>`).join('');
-  $('#stats').innerHTML = `<span class="w">${d.w} V</span> · <span class="d">${d.d} N</span> · <span class="l">${d.l} D</span>`;
-  $('#tcChips').innerHTML = TCS.map(t => `<button class="chip-btn ${d.tc === t.id ? 'on' : ''}" data-act="tc" data-v="${t.id}"><b>${t.label}</b><small>${t.sub}</small></button>`).join('');
-  $('#colorChips').innerHTML = COLORS.map(c => `<button class="chip-btn ${d.color === c.id ? 'on' : ''}" data-act="color" data-v="${c.id}">${c.label}</button>`).join('');
+    ['rated', 'target', 'Entraînement', `Problèmes à ton niveau, classement ${rtxt(d.ratings.puzzle)}`],
+    ['survival', 'heart', 'Survie', `De plus en plus durs, 3 vies. Record : ${d.best.survival || 0}`],
+    ['chrono', 'timer', 'Contre-la-montre', `Un maximum en 3 minutes. Record : ${d.best.chrono || 0}`]
+  ].map(([m, i, t, s]) => `<button class="pzmode" data-act="pz" data-mode="${m}"><span class="pzi">${ic(i)}</span><span class="pzt"><b>${t}</b><small>${s}</small></span>${ic('chevron-right', 'go')}</button>`).join('');
+  $('#stats').innerHTML = `<span class="w">${plural(d.w, 'victoire')}</span>, <span class="d">${plural(d.d, 'nulle')}</span>, <span class="l">${plural(d.l, 'défaite')}</span>`;
+  document.querySelectorAll('[data-fill="tc"]').forEach(el => { el.innerHTML = TCS.map(t => `<button class="chip-btn ${d.tc === t.id ? 'on' : ''}" data-act="tc" data-v="${t.id}" aria-pressed="${d.tc === t.id}"><b>${t.label}</b><small>${t.sub}</small></button>`).join(''); });
+  document.querySelectorAll('[data-fill="color"]').forEach(el => { el.innerHTML = COLORS.map(c => `<button class="chip-btn ${d.color === c.id ? 'on' : ''}" data-act="color" data-v="${c.id}" aria-pressed="${d.color === c.id}">${c.label}</button>`).join(''); });
   const hr = new Date().getHours();
   $('#greet').textContent = `${hr >= 18 || hr < 5 ? 'Bonsoir' : 'Bonjour'},`;
-  $('#botGrid').innerHTML = BOTS.map((b, i) => `<button class="bot" data-act="bot" data-i="${i}">
-      <span class="avatar" style="background:${b.color}">${b.name[0]}</span>
-      <span class="bot-info"><b>${b.name}</b><small>${b.desc}</small></span><span class="bot-elo">${b.elo}</span></button>`).join('');
+  const bi = Math.min(BOTS.length - 1, d.bot ?? 2), sel = BOTS[bi];
+  $('#botGrid').innerHTML = BOTS.map((b, i) => `<button class="bot ${i === bi ? 'on' : ''}" data-act="pickBot" data-i="${i}" aria-pressed="${i === bi}">
+      ${medal(i)}<span class="bot-info"><b>${b.name}</b><small>${b.desc}</small></span><span class="bot-elo">${b.elo}</span></button>`).join('');
+  $('#oppPlate').innerHTML = `${medal(bi)}<span class="plate-txt"><b>${sel.name}</b><small>${sel.desc}, ${sel.elo} Elo</small></span>`;
+  $('#mePlate').innerHTML = `<span class="avatar">${esc(d.name[0]?.toUpperCase() || '?')}</span><span class="plate-txt"><b>${esc(d.name)}</b><small>${CATS[curCat()].label}, ${rtxt(cr)}</small></span>`;
+  $('#startBtn').innerHTML = `${ic('swords')} Jouer contre ${sel.name}`;
+  lboard.setOrientation(d.color === 'b' ? 'b' : 'w');
   drawSpark();
 }
 function drawSpark() {
@@ -262,17 +286,17 @@ function showEndModal() {
   if (!G || !G.over) return;
   const r = G.result, win = r === G.myColor, draw = r === 'draw';
   const title = r === 'none' ? 'Partie interrompue' : draw ? 'Partie nulle' : win ? 'Victoire !' : 'Défaite';
-  const icon = r === 'none' ? '⚠️' : draw ? '🤝' : win ? '🏆' : '😔';
+  const icon = ic(r === 'none' ? 'circle-help' : draw ? 'handshake' : win ? 'trophy' : 'flag');
   let elo = '';
   if (G.eloDelta != null) {
     const d = G.eloDelta, cls = d > 0 ? 'up' : d < 0 ? 'down' : '';
-    elo = `<div class="elo-change">${CATS[G.cat].icon} ${CATS[G.cat].label} : ${G.eloBefore} → <b>${shown(store.d.ratings[G.cat])}</b> <span class="${cls}">${d > 0 ? '+' : ''}${d}</span></div>`;
+    elo = `<div class="elo-change">${ic(CATS[G.cat].icon)} ${CATS[G.cat].label} : ${G.eloBefore} → <b>${shown(store.d.ratings[G.cat])}</b> <span class="${cls}">${d > 0 ? '+' : ''}${d}</span></div>`;
   }
   const canRematch = G.mode === 'bot' || (G.mode === 'online' && G.connected);
   modal(`<div class="end-icon">${icon}</div><h2>${title}</h2><p class="muted">${esc(G.reason)}</p>${elo}
     <div class="btn-col">
-      <button class="btn primary" data-act="review">🔍 Revoir et analyser la partie</button>
-      ${canRematch ? '<button class="btn" data-act="rematch">↻ Revanche</button>' : ''}
+      <button class="btn primary" data-act="review">${ic('sparkles')} Revoir et analyser la partie</button>
+      ${canRematch ? `<button class="btn" data-act="rematch">${ic('refresh-cw')} Revanche</button>` : ''}
       <button class="btn ghost" data-act="home">Menu principal</button>
     </div>`);
 }
@@ -354,7 +378,7 @@ function renderBars() {
     const info = me ? { name: store.d.name, elo: G.mode === 'bot' ? rtxt(store.d.ratings[G.cat]) : null, color: '#5d9cec' } : G.opp;
     const active = !G.over && G.chess.turn() === col;
     const think = !me && G.thinking ? '<span class="thinking"><i></i><i></i><i></i></span>' : '';
-    $(id).innerHTML = `<span class="avatar" style="background:${info.color}">${esc(info.name[0]?.toUpperCase() || '?')}</span>
+    $(id).innerHTML = `${!me && G.mode === 'bot' && BOTS.includes(G.bot) ? medal(BOTS.indexOf(G.bot)) : `<span class="avatar">${esc(info.name[0]?.toUpperCase() || '?')}</span>`}
       <div class="pmeta"><div class="pname">${esc(info.name)}${info.elo != null ? ` <span class="pelo">(${info.elo})</span>` : ''}${think}</div>
       <div class="capt">${capturedHtml(col, cnt)}</div></div>
       ${G.tc.base ? `<div class="clock ${active ? 'on' : ''} ${col === 'w' ? 'cw' : 'cb'}" data-c="${col}">${fmtClock(G.clock[col])}</div>` : ''}`;
@@ -394,11 +418,11 @@ function renderActions() {
   const a = $('#actions');
   if (!G.over) {
     const n = G.chess.history().length;
-    a.innerHTML = (n < 2 && G.mode === 'bot' ? '<button class="btn" data-act="abort">✕ Annuler</button>' : `<button class="btn" data-act="resign">🏳 Abandonner</button>`)
-      + (G.mode === 'online' ? '<button class="btn" data-act="draw">½ Proposer nulle</button>' : '');
+    a.innerHTML = (n < 2 && G.mode === 'bot' ? `<button class="btn" data-act="abort">${ic('x')} Annuler</button>` : `<button class="btn" data-act="resign">${ic('flag')} Abandonner</button>`)
+      + (G.mode === 'online' ? `<button class="btn" data-act="draw">${ic('handshake')} Proposer nulle</button>` : '');
   } else {
     const canRematch = G.mode === 'bot' || (G.mode === 'online' && G.connected);
-    a.innerHTML = (canRematch ? '<button class="btn" data-act="rematch">↻ Revanche</button>' : '')
+    a.innerHTML = (canRematch ? `<button class="btn" data-act="rematch">${ic('refresh-cw')} Revanche</button>` : '')
       + '<button class="btn primary" data-act="home">Nouvelle partie</button>';
   }
 }
@@ -426,12 +450,12 @@ function renderReview() {
   const A = G.analysis, h = hist(), p = G.viewPly;
   if (!A) {
     el.innerHTML = `<h3>Revue de partie</h3><p class="muted">Classification des coups (brillants, gaffes…), précision et courbe d'évaluation.</p>
-      <button class="btn primary wide" data-act="review">⚡ Analyser la partie</button>`;
+      <button class="btn primary wide" data-act="review">${ic('sparkles')} Analyser la partie</button>`;
     return;
   }
   const pct = Math.round(A.progress * 100);
   const accHtml = c => `<div class="acc ${c}"><small>${c === 'w' ? 'Blancs' : 'Noirs'}${c === G.myColor ? ' (toi)' : ''}</small><b>${A.acc[c] != null ? A.acc[c].toFixed(1) : '…'}</b><small>précision</small></div>`;
-  let comment = '<span class="muted">Position de départ. Utilise ◀ ▶ pour parcourir la partie.</span>';
+  let comment = '<span class="muted">Position de départ. Utilise les flèches pour parcourir la partie.</span>';
   if (p > 0 && A.cls[p - 1]) {
     const c = A.cls[p - 1], info = CLASSES[c.cls], san = frSan(h[p - 1].san);
     const verb = { brilliant: 'est un coup brillant !', great: 'est un très bon coup : le seul qui tient.', best: 'est le meilleur coup.', excellent: 'est excellent.', good: 'est un bon coup.', inaccuracy: 'est une imprécision.', mistake: 'est une erreur.', miss: ': occasion manquée de punir l\'adversaire.', blunder: 'est une gaffe.' }[c.cls];
@@ -440,13 +464,13 @@ function renderReview() {
     const mover = h[p - 1].color, evB = A.evals[p - 1], evA = A.evals[p];
     const had = mateFor(evB, mover), still = mateFor(evA, mover), opp = mateFor(evA, other(mover));
     let mate = '';
-    if (evA?.mate === 0) mate = '<div class="mate ok">♚ Échec et mat !</div>';
-    else if (had && still && still < had) mate = `<div class="mate ok">♛ Mat forcé : plus que ${still} coup${still > 1 ? 's' : ''} !</div>`;
-    else if (had && still) mate = `<div class="mate">♛ Toujours un mat en ${still}, mais il y avait plus rapide (mat en ${had}).</div>`;
-    else if (had) mate = `<div class="mate miss">♛ Il y avait un mat en ${had} !</div>`;
-    if (opp) mate += `<div class="mate warn">⚠ L'adversaire a maintenant un mat en ${opp}.</div>`;
-    const btn = !GOOD.includes(c.cls) && evB?.pv?.length ? `<button class="btn sm gold" data-act="scnAlt">🔮 Voir ce qu'il fallait jouer</button>`
-      : evA?.pv?.length ? `<button class="btn sm" data-act="scnNext">🔮 Voir la suite idéale</button>` : '';
+    if (evA?.mate === 0) mate = `<div class="mate ok">${ic('crown')} Échec et mat !</div>`;
+    else if (had && still && still < had) mate = `<div class="mate ok">${ic('crown')} Mat forcé : plus que ${still} coup${still > 1 ? 's' : ''} !</div>`;
+    else if (had && still) mate = `<div class="mate">${ic('crown')} Toujours un mat en ${still}, mais il y avait plus rapide (mat en ${had}).</div>`;
+    else if (had) mate = `<div class="mate miss">${ic('crown')} Il y avait un mat en ${had} !</div>`;
+    if (opp) mate += `<div class="mate warn">${ic('circle-help')} L'adversaire a maintenant un mat en ${opp}.</div>`;
+    const btn = !GOOD.includes(c.cls) && evB?.pv?.length ? `<button class="btn sm gold" data-act="scnAlt">${ic('sparkles')} Voir ce qu'il fallait jouer</button>`
+      : evA?.pv?.length ? `<button class="btn sm" data-act="scnNext">${ic('sparkles')} Voir la suite idéale</button>` : '';
     comment = `<div class="cmt"><i class="cglyph" style="background:${info.color}">${info.sym}</i><div><b style="color:${info.color}">${esc(san)}</b> ${verb}${alt}</div><span class="cev">${evalText(A.evals[p])}</span></div>${mate}${btn}`;
   } else if (p > 0) comment = '<span class="muted">Analyse de ce coup en cours…</span>';
   if (G.scn) comment = scenarioHtml();
@@ -513,9 +537,9 @@ function scenarioHtml() {
     const pre = m.color === 'w' ? `<i class="mn">${num}.</i>` : k === 0 ? `<i class="mn">${num}…</i>` : '';
     return `${pre}<span class="sm-mv ${k === S.i - 1 ? 'cur' : ''} ${k >= S.i ? 'todo' : ''}">${esc(frSan(m.san))}</span>`;
   }).join(' ');
-  return `<div class="scn"><div class="scn-head">🔮 ${S.title}${S.mate && n ? ` <span class="mate-pill">Mat en ${n}</span>` : ''}</div>
+  return `<div class="scn"><div class="scn-head">${ic('sparkles')} ${S.title}${S.mate && n ? ` <span class="mate-pill">Mat en ${n}</span>` : ''}</div>
     <div class="scn-line">${line}</div>
-    <div class="scn-ctl"><button class="btn sm" data-act="scnPrev">◀</button><button class="btn sm" data-act="scnToggle">${S.playing ? '⏸ Pause' : '▶ Lire'}</button><button class="btn sm" data-act="scnFwd">▶</button><button class="btn sm ghost" data-act="scnClose">✕ Fermer</button></div></div>`;
+    <div class="scn-ctl"><button class="btn sm" data-act="scnPrev" aria-label="Coup précédent">${ic('chevron-left')}</button><button class="btn sm" data-act="scnToggle">${S.playing ? `${ic('pause')} Pause` : `${ic('play')} Lire`}</button><button class="btn sm" data-act="scnFwd" aria-label="Coup suivant">${ic('chevron-right')}</button><button class="btn sm ghost" data-act="scnClose">${ic('x')} Fermer</button></div></div>`;
 }
 
 function drawGraph() {
@@ -631,10 +655,10 @@ async function hostGame() {
       <input class="linkbox" readonly value="${esc(hostLink)}" onclick="this.select()">
       <div class="btn-row">
         <a class="btn wa" href="${wa}" target="_blank" rel="noopener noreferrer">WhatsApp</a>
-        <button class="btn" data-act="copyLink">Copier</button>
-        ${navigator.share ? '<button class="btn" data-act="shareLink">Partager…</button>' : ''}
+        <button class="btn" data-act="copyLink">${ic('copy')} Copier</button>
+        ${navigator.share ? `<button class="btn" data-act="shareLink">${ic('share-2')} Partager</button>` : ''}
       </div>
-      <p class="muted small">Cadence ${tc.label} (${tc.sub}) · Ta couleur : ${col.label}</p>
+      <p class="muted small">Cadence ${tc.label} (${tc.sub}), ta couleur : ${col.label}</p>
       <div class="waiting"><div class="spinner"></div><span>En attente de ton ami…</span></div>
       <button class="btn ghost" data-act="cancelHost">Annuler</button>`);
   } catch (e) {
@@ -646,7 +670,7 @@ async function hostGame() {
 function joinFromHash() {
   const m = location.hash.match(/^#j=(echecs-[a-z0-9]{6,20})$/);
   if (!m) return;
-  modal(`<h2>♟️ On t'a défié aux échecs !</h2><p class="muted">Choisis ton pseudo puis rejoins la partie.</p>
+  modal(`<div class="end-icon">${ic('swords')}</div><h2>On t'a défié aux échecs !</h2><p class="muted">Choisis ton pseudo puis rejoins la partie.</p>
     <input class="linkbox" id="joinName" maxlength="16" value="${esc(store.d.name)}">
     <div class="btn-col"><button class="btn primary" data-act="join" data-id="${m[1]}">Rejoindre la partie</button>
     <button class="btn ghost" data-act="home">Plus tard</button></div>`);
@@ -670,16 +694,21 @@ async function join(id) {
 function closeOnline() { if (online) { online.close(); online = null; } }
 
 // ---------- Actions ----------
-function goHome() {
+function goHome(fromPop = false) {
   if (G && !G.over && G.chess.history().length >= 2) {
-    if (!confirm('Quitter la partie ? Elle sera comptée comme abandonnée.')) return;
+    if (!confirm('Quitter la partie ? Elle sera comptée comme abandonnée.')) return false;
     resign(true);
   }
   closeOnline(); closeModal(); puzzles.close();
   G = null;
-  history.replaceState(null, '', location.pathname);
+  if (location.hash) history.replaceState(history.state, '', location.pathname);
   renderHome(); showScreen('home');
+  if (!fromPop && history.state?.s === 'sub') history.back();
+  return true;
 }
+window.addEventListener('popstate', () => {
+  if (document.body.dataset.screen !== 'home' && !goHome(true)) history.pushState({ s: 'sub' }, '');
+});
 function resign(force) {
   if (!G || G.over) return;
   if (!force && !confirm('Abandonner la partie ?')) return;
@@ -695,7 +724,10 @@ function rematch() {
 }
 
 const ACT = {
-  home: goHome,
+  home: () => goHome(),
+  tab: b => { if (document.body.dataset.screen !== 'home' && !goHome()) return; store.d.tab = b.dataset.v; store.save(); renderHome(); window.scrollTo(0, 0); },
+  pickBot: b => { store.d.bot = +b.dataset.i; store.save(); renderHome(); },
+  start: () => startBot(Math.min(BOTS.length - 1, store.d.bot ?? 2)),
   toggleSound: () => { store.d.sound = sound.enabled = !store.d.sound; store.save(); renderHome(); },
   tc: b => { store.d.tc = b.dataset.v; store.save(); renderHome(); },
   color: b => { store.d.color = b.dataset.v; store.save(); renderHome(); },
@@ -734,7 +766,7 @@ const ACT = {
   pzSolution: () => puzzles.giveUp(),
   pzNext: () => puzzles.next(),
   pzSkip: () => puzzles.skip(),
-  install: () => { if (installEvt) { installEvt.prompt(); installEvt = null; renderInstall(); } else modal(`<h2>📲 Installer l'appli</h2><p>Sur iPhone : touche <b>Partager</b> <span style="font-size:20px">⎙</span> puis <b>« Sur l'écran d'accueil »</b>.</p><p>Sur Android : menu <b>⋮</b> puis <b>« Installer l'application »</b>.</p><button class="btn" data-act="closeModal">OK</button>`); },
+  install: () => { if (installEvt) { installEvt.prompt(); installEvt = null; renderInstall(); } else modal(`<div class="end-icon">${ic('smartphone')}</div><h2>Installer ChessM</h2><p>Sur iPhone : touche <b>Partager</b> ${ic('share-2')} puis <b>« Sur l'écran d'accueil »</b>.</p><p>Sur Android : menu <b>⋮</b> puis <b>« Installer l'application »</b>.</p><button class="btn" data-act="closeModal">OK</button>`); },
   closeModal
 };
 

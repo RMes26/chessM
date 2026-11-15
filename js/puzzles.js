@@ -1,10 +1,11 @@
 // Problèmes : du jour, entraînement classé, survie (3 vies), contre-la-montre (3 min)
 // Base : lichess puzzle database (CC0)
 import { Chess } from '../lib/chess.js';
-import { Board } from './board.js?v=5';
-import { update, shown, provisional } from './rating.js?v=5';
-import { play } from './sound.js?v=5';
-import { confetti, shake } from './fx.js?v=5';
+import { Board } from './board.js?v=6';
+import { update, shown, provisional } from './rating.js?v=6';
+import { play } from './sound.js?v=6';
+import { confetti, shake } from './fx.js?v=6';
+import { ic } from './ui.js?v=6';
 
 const THEMES = {
   mateIn1: 'Mat en 1', mateIn2: 'Mat en 2', mateIn3: 'Mat en 3', mateIn4: 'Mat en 4', mate: 'Mat',
@@ -19,10 +20,10 @@ const THEMES = {
   anastasiaMate: 'Mat d\'Anastasie', bodenMate: 'Mat de Boden', doubleBishopMate: 'Mat des deux fous', dovetailMate: 'Mat en queue d\'aronde', hookMate: 'Mat du crochet'
 };
 const MODES = {
-  daily: { title: '📅 Problème du jour' },
-  rated: { title: '🎯 Entraînement' },
-  survival: { title: '❤️ Survie' },
-  chrono: { title: '⏱️ Contre-la-montre' }
+  daily: { title: 'Problème du jour', icon: 'calendar-days' },
+  rated: { title: 'Entraînement', icon: 'target' },
+  survival: { title: 'Survie', icon: 'heart' },
+  chrono: { title: 'Contre-la-montre', icon: 'timer' }
 };
 
 let DB = null;
@@ -36,7 +37,7 @@ export function currentStreak(daily) {
 }
 
 export function createPuzzles({ $, store, toast, showScreen, modal, onChange }) {
-  const board = new Board($('#pboard'), { onMove: mv => userMove(mv) });
+  const board = new Board($('#pboard'), { onMove: mv => userMove(mv), coordsOut: true });
   let P = null, Z = null, timer = null;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -182,10 +183,10 @@ export function createPuzzles({ $, store, toast, showScreen, modal, onChange }) 
     play(rec && P.score > 0 ? 'win' : 'end');
     if (rec && P.score > 0) confetti();
     render();
-    modal(`<div class="end-icon">${rec && P.score > 0 ? '🏆' : '🧩'}</div><h2>${P.mode === 'chrono' ? 'Temps écoulé !' : 'Plus de vies !'}</h2>
+    modal(`<div class="end-icon">${ic(rec && P.score > 0 ? 'trophy' : 'puzzle')}</div><h2>${P.mode === 'chrono' ? 'Temps écoulé !' : 'Plus de vies !'}</h2>
       <p class="score-big">${P.score} <small>problème${P.score > 1 ? 's' : ''} réussi${P.score > 1 ? 's' : ''}</small></p>
       <p class="muted">${rec && P.score > 0 ? 'Nouveau record personnel !' : `Record : ${b[key] || 0}`}</p>
-      <div class="btn-col"><button class="btn primary" data-act="pz" data-mode="${P.mode}">↻ Rejouer</button><button class="btn ghost" data-act="home">Menu principal</button></div>`);
+      <div class="btn-col"><button class="btn primary" data-act="pz" data-mode="${P.mode}">${ic('refresh-cw')} Rejouer</button><button class="btn ghost" data-act="home">Menu principal</button></div>`);
   }
 
   function render() {
@@ -194,8 +195,8 @@ export function createPuzzles({ $, store, toast, showScreen, modal, onChange }) 
     const side = Z.color === 'w' ? 'Blancs' : 'Noirs';
     const mate = Z.pz[4].match(/mateIn(\d)/);
     let status;
-    if (Z.solved) status = '<b class="ok">✅ Bravo, c\'est réussi !</b>';
-    else if (Z.done && Z.failed) status = '<b class="ko">❌ Voici la solution</b>';
+    if (Z.solved) status = '<b class="ok">Bravo, c\'est réussi !</b>';
+    else if (Z.done && Z.failed) status = '<b class="ko">Voici la solution</b>';
     else if (Z.failed) status = '<b class="ko">Ce n\'est pas le bon coup. Réessaie !</b>';
     else if (Z.busy && Z.step === 0) status = '<span class="muted">Regarde le coup de l\'adversaire…</span>';
     else status = `<span class="turn ${Z.color}"></span> Trouve le meilleur coup pour les <b>${side}</b>${mate ? ` — <b>mat en ${mate[1]}</b>` : ''}`;
@@ -203,27 +204,27 @@ export function createPuzzles({ $, store, toast, showScreen, modal, onChange }) 
 
     let stats = '';
     const R = store.d.ratings.puzzle;
-    if (P.mode === 'survival') stats = `<span class="hearts">${'❤️'.repeat(P.lives)}${'🖤'.repeat(3 - P.lives)}</span><span class="pz-score">${P.score}</span>`;
+    if (P.mode === 'survival') stats = `<span class="hearts" aria-label="${P.lives} vie${P.lives > 1 ? 's' : ''}">${ic('heart', 'full').repeat(P.lives)}${ic('heart', 'lost').repeat(3 - P.lives)}</span><span class="pz-score">${P.score}</span>`;
     else if (P.mode === 'chrono') stats = `<span class="pz-clock" id="pzClock">${fmt(P.endAt - performance.now())}</span><span class="pz-score">${P.score}</span>${P.errors ? `<span class="ko">✗${P.errors}</span>` : ''}`;
-    else if (P.mode === 'rated') stats = `<span class="pz-rating">🧩 ${shown(R)}${provisional(R) ? '?' : ''}${Z.delta != null ? ` <i class="${Z.delta >= 0 ? 'up' : 'down'}">${Z.delta >= 0 ? '+' : ''}${Z.delta}</i>` : ''}</span>`;
-    else stats = `<span class="pz-streak">🔥 ${currentStreak(store.d.daily)}</span>`;
-    $('#pzTop').innerHTML = `<b>${MODES[P.mode].title}</b><div class="pz-stats">${stats}</div>`;
+    else if (P.mode === 'rated') stats = `<span class="pz-rating">${ic('puzzle')} ${shown(R)}${provisional(R) ? '?' : ''}${Z.delta != null ? ` <i class="${Z.delta >= 0 ? 'up' : 'down'}">${Z.delta >= 0 ? '+' : ''}${Z.delta}</i>` : ''}</span>`;
+    else stats = `<span class="pz-streak" title="Série de jours">${ic('flame')} ${currentStreak(store.d.daily)}</span>`;
+    $('#pzTop').innerHTML = `<b>${ic(MODES[P.mode].icon)} ${MODES[P.mode].title}</b><div class="pz-stats">${stats}</div>`;
 
     const themes = Z.pz[4].split(' ').map(t => THEMES[t]).filter(Boolean);
     const daily = P.mode === 'daily' ? store.d.daily.done[dayKey()] : null;
     $('#pzPanel').innerHTML = `
       <div class="pz-info"><span>Difficulté</span><b>${P.mode === 'survival' || P.mode === 'chrono' ? '—' : Z.pz[3]}</b></div>
       ${Z.done ? `<div class="pz-themes">${themes.map(t => `<span>${t}</span>`).join('')}</div>` : '<p class="muted small">Les thèmes du problème s\'affichent une fois terminé.</p>'}
-      ${P.mode === 'daily' ? `<p class="muted small">${daily ? 'Problème du jour déjà joué — reviens demain pour le suivant !' : 'Un nouveau problème chaque jour, le même pour toute la famille. Réussis-le pour garder ta série 🔥.'}</p>` : ''}
+      ${P.mode === 'daily' ? `<p class="muted small">${daily ? 'Problème du jour déjà joué — reviens demain pour le suivant !' : 'Un nouveau problème chaque jour, le même pour toute la famille. Réussis-le pour garder ta série.'}</p>` : ''}
       ${P.mode === 'survival' ? '<p class="muted small">Les problèmes deviennent de plus en plus durs. 3 erreurs et c\'est fini !</p>' : ''}
       ${P.mode === 'chrono' ? '<p class="muted small">Un maximum de problèmes en 3 minutes. Chaque erreur coûte 10 secondes.</p>' : ''}
       <a class="muted small" href="https://lichess.org/training/${esc(Z.pz[0])}" target="_blank" rel="noopener noreferrer">Problème n° ${esc(Z.pz[0])} (base lichess)</a>`;
 
     const acts = [];
-    if (!Z.done && !P.over && P.mode !== 'chrono') acts.push('<button class="btn" data-act="pzHint">💡 Indice</button>', '<button class="btn" data-act="pzSolution">👁 Solution</button>');
-    if (Z.done && P.mode === 'rated') acts.push('<button class="btn primary" data-act="pzNext">Suivant ▶</button>');
-    if (Z.done && P.mode === 'daily') acts.push('<button class="btn primary" data-act="pz" data-mode="rated">🎯 S\'entraîner</button>');
-    if (P.mode === 'chrono' && !P.over) acts.push('<button class="btn" data-act="pzSkip">Passer ▶</button>');
+    if (!Z.done && !P.over && P.mode !== 'chrono') acts.push(`<button class="btn" data-act="pzHint">${ic('lightbulb')} Indice</button>`, `<button class="btn" data-act="pzSolution">${ic('eye')} Solution</button>`);
+    if (Z.done && P.mode === 'rated') acts.push(`<button class="btn primary" data-act="pzNext">Suivant ${ic('chevron-right')}</button>`);
+    if (Z.done && P.mode === 'daily') acts.push(`<button class="btn primary" data-act="pz" data-mode="rated">${ic('target')} S'entraîner</button>`);
+    if (P.mode === 'chrono' && !P.over) acts.push(`<button class="btn" data-act="pzSkip">Passer ${ic('skip-forward')}</button>`);
     acts.push('<button class="btn ghost" data-act="home">Menu</button>');
     $('#pzActions').innerHTML = acts.join('');
   }

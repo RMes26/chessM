@@ -2,11 +2,11 @@
 const SC = 173.7178, TAU = 0.5;
 
 export const CATS = {
-  bullet: { label: 'Bullet', icon: '⚡' },
-  blitz: { label: 'Blitz', icon: '🔥' },
-  rapide: { label: 'Rapide', icon: '🐇' },
-  classique: { label: 'Classique', icon: '🐢' },
-  puzzle: { label: 'Problèmes', icon: '🧩' }
+  bullet: { label: 'Bullet', icon: 'zap' },
+  blitz: { label: 'Blitz', icon: 'flame' },
+  rapide: { label: 'Rapide', icon: 'timer' },
+  classique: { label: 'Classique', icon: 'crown' },
+  puzzle: { label: 'Problèmes', icon: 'puzzle' }
 };
 
 export const newRating = (r = 1000, rd = 250) => ({ r, rd, vol: 0.06, n: 0, hist: [Math.round(r)] });

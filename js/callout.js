@@ -25,18 +25,18 @@ const PIECE = { q: 'dame', r: 'tour', b: 'fou', n: 'cavalier' };
 
 // m : coup verbose chess.js déjà joué, chess : position après le coup
 export function detect(m, chess) {
-  if (chess.isCheckmate()) return { text: 'Échec et mat !', icon: '♚', say: 'Échec et mat !', big: true };
+  if (chess.isCheckmate()) return { text: 'Échec et mat !', icon: 'k', say: 'Échec et mat !', big: true };
   const check = chess.inCheck();
   let e = null;
-  if (m.promotion) e = { text: `Promotion en ${PIECE[m.promotion]} !`, icon: '♛', say: `Promotion en ${PIECE[m.promotion]}` };
-  else if (m.captured === 'q') e = { text: 'Dame capturée !', icon: '♛', say: 'Dame capturée' };
-  else if (m.flags.includes('e')) e = { text: 'En passant !', icon: '♟', say: 'En passant' };
-  else if (m.captured === 'r') e = { text: 'Tour capturée !', icon: '♜', say: 'Tour capturée' };
-  else if (m.flags.includes('k')) e = { text: 'Petit roque', icon: '♜', say: 'Petit roque' };
-  else if (m.flags.includes('q')) e = { text: 'Grand roque', icon: '♜', say: 'Grand roque' };
+  if (m.promotion) e = { text: `Promotion en ${PIECE[m.promotion]} !`, icon: m.promotion, say: `Promotion en ${PIECE[m.promotion]}` };
+  else if (m.captured === 'q') e = { text: 'Dame capturée !', icon: 'q', say: 'Dame capturée' };
+  else if (m.flags.includes('e')) e = { text: 'En passant !', icon: 'p', say: 'En passant' };
+  else if (m.captured === 'r') e = { text: 'Tour capturée !', icon: 'r', say: 'Tour capturée' };
+  else if (m.flags.includes('k')) e = { text: 'Petit roque', icon: 'k', say: 'Petit roque' };
+  else if (m.flags.includes('q')) e = { text: 'Grand roque', icon: 'k', say: 'Grand roque' };
   if (check) {
     if (e) { e.text += ' Échec !'; e.say += ', échec'; }
-    else e = { text: 'Échec !', icon: '⚠', say: 'Échec' };
+    else e = { text: 'Échec !', icon: 'k', say: 'Échec' };
   }
   return e;
 }

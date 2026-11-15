@@ -4,13 +4,13 @@ const NAMES = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: '
 const pieceCls = p => `pc piece ${NAMES[p.type]} ${p.color === 'w' ? 'white' : 'black'}`;
 
 export class Board {
-  constructor(el, { onMove }) {
-    this.el = el; this.onMove = onMove;
+  constructor(el, { onMove, coordsOut = false } = {}) {
+    this.el = el; this.onMove = onMove || (() => {}); this.coordsOut = coordsOut;
     this.orientation = 'w'; this.pieces = new Map(); this.position = new Map();
     this.selected = null; this.dests = new Set(); this.interactive = null; this.legalFn = () => [];
     this.arrows = []; this.badge = null; this.hl = {};
     el.classList.add('board');
-    el.innerHTML = `<div class="sqs"></div><div class="pcs"></div>
+    el.innerHTML = `<div class="coords" aria-hidden="true"></div><div class="sqs"></div><div class="pcs"></div>
       <svg class="arrows" viewBox="0 0 8 8"><defs><marker id="ah" markerWidth="4" markerHeight="4" refX="2.05" refY="2" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L4,2 L0,4 z" fill="context-stroke"/></marker></defs><g></g></svg>
       <div class="badge-wrap hidden"><span class="badge"></span></div><div class="ghostpc hidden"></div>
       <div class="callout hidden"><span class="co-icon"></span><span class="co-text"></span></div><div class="promo hidden"></div>`;
@@ -41,9 +41,20 @@ export class Board {
     let h = '';
     for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
       const sq = this.sqAt(x, y), light = (sq.charCodeAt(0) - 97 + +sq[1] - 1) % 2 === 1;
-      h += `<div class="sq ${light ? 'light' : 'dark'}" data-sq="${sq}">${x === 0 ? `<span class="rk">${sq[1]}</span>` : ''}${y === 7 ? `<span class="fl">${sq[0]}</span>` : ''}</div>`;
+      const lab = this.coordsOut ? '' : `${x === 0 ? `<span class="rk">${sq[1]}</span>` : ''}${y === 7 ? `<span class="fl">${sq[0]}</span>` : ''}`;
+      h += `<div class="sq ${light ? 'light' : 'dark'}" data-sq="${sq}">${lab}</div>`;
     }
     this.sqs.innerHTML = h;
+    // Coordonnées gravées dans le cadre (hors des cases)
+    const co = this.el.querySelector('.coords');
+    if (this.coordsOut) {
+      let c = '';
+      for (let i = 0; i < 8; i++) {
+        const f = this.orientation === 'w' ? FILES[i] : FILES[7 - i], r = this.orientation === 'w' ? 8 - i : i + 1;
+        c += `<span class="cf" style="--i:${i}">${f}</span><span class="cr" style="--i:${i}">${r}</span>`;
+      }
+      co.innerHTML = c;
+    } else co.innerHTML = '';
     this.sqEls = {};
     this.sqs.querySelectorAll('.sq').forEach(d => { this.sqEls[d.dataset.sq] = d; });
   }
@@ -229,9 +240,9 @@ export class Board {
   }
 
   // Annonce animée au centre de l'échiquier
-  callout(text, icon = '') {
+  callout(text, piece = '') {
     const c = this.coEl;
-    c.querySelector('.co-icon').textContent = icon;
+    c.querySelector('.co-icon').className = 'co-icon' + (NAMES[piece] ? ` piece ${NAMES[piece]} white` : '');
     c.querySelector('.co-text').textContent = text;
     c.classList.remove('hidden', 'show'); void c.offsetWidth; c.classList.add('show');
     clearTimeout(this._co); this._co = setTimeout(() => c.classList.add('hidden'), 1600);

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta name="theme-color" content="#0c0c0f">
+<meta name="theme-color" content="#0e0c0a">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
@@ -15,77 +15,105 @@
 <title>ChessM</title>
 <link rel="icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/cormorant-garamond-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/montserrat-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
 <script>
   // Filet de sécurité : si un vieux fichier en cache provoque une erreur, on recharge une seule fois
   addEventListener('error', function () { try { if (!sessionStorage.getItem('cm-reload')) { sessionStorage.setItem('cm-reload', '1'); setTimeout(function () { location.reload(); }, 300); } } catch (_) {} });
   addEventListener('load', function () { setTimeout(function () { try { sessionStorage.removeItem('cm-reload'); } catch (_) {} }, 5000); });
 </script>
 <link rel="stylesheet" href="lib/pieces.css">
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=6">
 <script src="lib/peerjs.min.js" defer></script>
-<script type="module" src="js/app.js?v=5"></script>
+<script type="module" src="js/app.js?v=6"></script>
 </head>
-<body data-theme="bronze">
+<body data-theme="bronze" data-screen="home">
 <header class="topbar">
-  <button class="brand" data-act="home" aria-label="Accueil"><span class="logo">♞</span><span class="brand-name">Chess<em>M</em></span></button>
+  <button class="brand" data-act="home" aria-label="ChessM, accueil">
+    <span class="logo"><i class="piece knight white" aria-hidden="true"></i></span>
+    <span class="brand-name">ChessM</span>
+  </button>
+  <nav class="tabbar" aria-label="Sections">
+    <button data-act="tab" data-v="play"><svg class="ic" aria-hidden="true"><use href="icons/sprite.svg#swords"></use></svg><span>Jouer</span></button>
+    <button data-act="tab" data-v="puzzles"><svg class="ic" aria-hidden="true"><use href="icons/sprite.svg#puzzle"></use></svg><span>Problèmes</span></button>
+    <button data-act="tab" data-v="friend"><svg class="ic" aria-hidden="true"><use href="icons/sprite.svg#users"></use></svg><span>Défier</span></button>
+    <button data-act="tab" data-v="profile"><svg class="ic" aria-hidden="true"><use href="icons/sprite.svg#user"></use></svg><span>Profil</span></button>
+  </nav>
   <div class="top-right">
     <span class="chip" id="eloChip"></span>
-    <button class="icon-btn" id="btnSound" data-act="toggleSound" title="Couper / activer le son">🔊</button>
-    <button class="icon-btn" data-act="settings" title="Paramètres" aria-label="Paramètres">⚙</button>
+    <button class="icon-btn" id="btnSound" data-act="toggleSound" aria-label="Son"></button>
+    <button class="icon-btn" data-act="settings" aria-label="Paramètres"><svg class="ic" aria-hidden="true"><use href="icons/sprite.svg#settings"></use></svg></button>
   </div>
 </header>
 
 <main>
   <section id="home" class="screen">
-    <div class="hero card">
-      <div class="hero-id">
-        <span class="avatar big" id="meAvatar"></span>
-        <div class="pinfo">
-          <span class="greet" id="greet">Bonsoir,</span>
-          <input id="nameInput" maxlength="16" aria-label="Pseudo" title="Touche pour changer ton pseudo">
-          <div class="stats" id="stats"></div>
+    <!-- Jouer : le salon -->
+    <div class="pane lobby" data-pane="play">
+      <div class="lobby-stage">
+        <div class="plate" id="oppPlate"></div>
+        <div class="frame"><div id="lboard"></div></div>
+        <div class="plate" id="mePlate"></div>
+      </div>
+      <div class="lobby-side panel">
+        <h1>Choisis ton adversaire</h1>
+        <p class="muted">Chaque partie compte pour ton classement.</p>
+        <div class="bot-list" id="botGrid" role="list"></div>
+        <div class="opt"><h3>Cadence</h3><div class="chips" data-fill="tc"></div></div>
+        <div class="opt"><h3>Tu joues</h3><div class="chips" data-fill="color"></div></div>
+        <button class="btn primary wide cta" id="startBtn" data-act="start">Commencer</button>
+      </div>
+    </div>
+
+    <!-- Problèmes -->
+    <div class="pane" data-pane="puzzles">
+      <div class="daily panel" id="dailyCard"></div>
+      <div class="pz-modes" id="pzModes"></div>
+      <p class="muted small center">Plus de 3 500 problèmes de la base libre de lichess, du débutant au maître.</p>
+    </div>
+
+    <!-- Défier un ami -->
+    <div class="pane friend" data-pane="friend">
+      <div class="panel friend-panel">
+        <span class="friend-mark"><i class="piece knight white" aria-hidden="true"></i><i class="piece knight black" aria-hidden="true"></i></span>
+        <h1>Défier un ami</h1>
+        <p class="muted">Crée un lien privé et envoie-le par WhatsApp ou SMS. Ton ami l'ouvre et la partie commence en direct. Ces parties ne comptent pas pour le classement.</p>
+        <div class="opt"><h3>Cadence</h3><div class="chips" data-fill="tc"></div></div>
+        <div class="opt"><h3>Tu joues</h3><div class="chips" data-fill="color"></div></div>
+        <button class="btn primary wide cta" data-act="host">Créer le lien de défi</button>
+      </div>
+    </div>
+
+    <!-- Profil -->
+    <div class="pane profile" data-pane="profile">
+      <div class="panel hero">
+        <div class="hero-id">
+          <span class="avatar big" id="meAvatar"></span>
+          <div class="pinfo">
+            <span class="greet" id="greet">Bonsoir,</span>
+            <input id="nameInput" maxlength="16" aria-label="Ton pseudo" title="Touche pour changer ton pseudo">
+            <div class="stats" id="stats"></div>
+          </div>
+          <div class="hero-elo"><span class="elo-big" id="eloBig"></span><small id="eloCat"></small></div>
         </div>
-        <div class="hero-elo"><span class="elo-big" id="eloBig"></span><small id="eloCat"></small></div>
+        <canvas id="eloSpark" height="40" aria-label="Évolution du classement"></canvas>
       </div>
-      <canvas id="eloSpark" height="40"></canvas>
       <div class="ratings" id="ratings"></div>
-      <button class="btn wide install hidden" id="installBtn" data-act="install">📲 Installer ChessM sur l'écran d'accueil</button>
+      <button class="btn wide install hidden" id="installBtn" data-act="install"><svg class="ic" aria-hidden="true"><use href="icons/sprite.svg#smartphone"></use></svg> Installer ChessM sur l'écran d'accueil</button>
+      <button class="btn wide" data-act="settings"><svg class="ic" aria-hidden="true"><use href="icons/sprite.svg#settings"></use></svg> Paramètres</button>
+      <p class="foot"><a href="credits.html">Crédits et licences</a></p>
     </div>
-
-    <div class="home-grid">
-      <div class="card play">
-        <div class="sec-head"><span class="sec-num">I</span><h2>Jouer contre un bot</h2></div>
-        <p class="muted">Parties classées — ton classement évolue à chaque partie.</p>
-        <div class="setting-row"><h3>Cadence</h3><div class="chips" id="tcChips"></div></div>
-        <div class="setting-row"><h3>Ta couleur</h3><div class="chips" id="colorChips"></div></div>
-        <div class="bot-grid" id="botGrid"></div>
-      </div>
-
-      <div class="card puzzles">
-        <div class="sec-head"><span class="sec-num">II</span><h2>Problèmes</h2></div>
-        <p class="muted">Plus de 3 500 problèmes, du débutant au maître.</p>
-        <div class="pz-modes" id="pzModes"></div>
-      </div>
-
-      <div class="card friend">
-        <div class="sec-head"><span class="sec-num">III</span><h2>Défier un ami</h2></div>
-        <p class="muted">Un lien privé à envoyer (WhatsApp, SMS…). Partie en direct, non classée. La cadence et la couleur choisies plus haut s'appliquent.</p>
-        <button class="btn primary wide" data-act="host">Créer un lien de défi</button>
-      </div>
-    </div>
-    <footer class="foot"><span>ChessM</span> · <a href="credits.html">Crédits &amp; licences</a></footer>
   </section>
 
   <section id="puzzle" class="screen hidden">
     <div class="game-layout">
       <div class="board-col">
         <div class="pz-top" id="pzTop"></div>
-        <div class="board-row"><div id="pboard"></div></div>
+        <div class="board-row"><div class="frame"><div id="pboard"></div></div></div>
         <div class="pz-status" id="pzStatus"></div>
       </div>
       <aside class="side">
         <div class="actions" id="pzActions"></div>
-        <div class="card" id="pzPanel"></div>
+        <div class="panel" id="pzPanel"></div>
       </aside>
     </div>
   </section>
@@ -96,21 +124,21 @@
         <div class="pbar" id="barTop"></div>
         <div class="board-row">
           <div class="evalbar hidden" id="evalBar"><div class="fill" id="evalFill"></div><span id="evalTxt"></span></div>
-          <div id="board"></div>
+          <div class="frame"><div id="board"></div></div>
         </div>
         <div class="pbar" id="barBottom"></div>
       </div>
       <aside class="side">
         <div class="actions" id="actions"></div>
-        <div class="card review hidden" id="review"></div>
-        <div class="card movecard">
+        <div class="panel review hidden" id="review"></div>
+        <div class="panel movecard">
           <div class="moves" id="moves"></div>
           <div class="nav">
-            <button data-act="first" title="Début">⏮</button>
-            <button data-act="prev" title="Précédent">◀</button>
-            <button data-act="next" title="Suivant">▶</button>
-            <button data-act="last" title="Fin">⏭</button>
-            <button data-act="flip" title="Retourner l'échiquier">⇅</button>
+            <button data-act="first" aria-label="Début de la partie"><svg class="ic" aria-hidden="true"><use href="icons/sprite.svg#chevrons-left"></use></svg></button>
+            <button data-act="prev" aria-label="Coup précédent"><svg class="ic" aria-hidden="true"><use href="icons/sprite.svg#chevron-left"></use></svg></button>
+            <button data-act="next" aria-label="Coup suivant"><svg class="ic" aria-hidden="true"><use href="icons/sprite.svg#chevron-right"></use></svg></button>
+            <button data-act="last" aria-label="Dernier coup"><svg class="ic" aria-hidden="true"><use href="icons/sprite.svg#chevrons-right"></use></svg></button>
+            <button data-act="flip" aria-label="Retourner l'échiquier"><svg class="ic" aria-hidden="true"><use href="icons/sprite.svg#arrow-up-down"></use></svg></button>
           </div>
         </div>
       </aside>
@@ -118,7 +146,7 @@
   </section>
 </main>
 
-<div class="modal hidden" id="modal"><div class="modal-box" id="modalBox"></div></div>
-<div class="toast" id="toast"></div>
+<div class="modal hidden" id="modal"><div class="modal-box" id="modalBox" role="dialog" aria-modal="true"></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>
