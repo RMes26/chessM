@@ -1,14 +1,14 @@
 import { Chess } from '../lib/chess.js';
-import { Board } from './board.js?v=6';
-import { Engine, botMove } from './engine.js?v=6';
-import { analyseGame, CLASSES, evalText } from './analysis.js?v=6';
-import { play, sound, unlockAudio } from './sound.js?v=6';
-import { Online } from './online.js?v=6';
-import { CATS, catOf, newRating, update as glicko, shown, provisional } from './rating.js?v=6';
-import { confetti, shake } from './fx.js?v=6';
-import { createPuzzles, currentStreak } from './puzzles.js?v=6';
-import { detect, speak, callouts } from './callout.js?v=6';
-import { ic, pieceImg } from './ui.js?v=6';
+import { Board } from './board.js?v=7';
+import { Engine, botMove } from './engine.js?v=7';
+import { analyseGame, CLASSES, evalText } from './analysis.js?v=7';
+import { play, sound, unlockAudio } from './sound.js?v=7';
+import { Online } from './online.js?v=7';
+import { CATS, catOf, newRating, update as glicko, shown, provisional } from './rating.js?v=7';
+import { confetti, shake } from './fx.js?v=7';
+import { createPuzzles, currentStreak } from './puzzles.js?v=7';
+import { detect, speak, callouts } from './callout.js?v=7';
+import { ic, pieceImg } from './ui.js?v=7';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -40,7 +40,7 @@ const BOT_PIECE = ['p', 'p', 'n', 'n', 'b', 'r', 'q', 'q', 'k'];
 const medal = i => `<span class="medal" style="--tint:${BOTS[i].color}">${pieceImg(BOT_PIECE[i], 'w')}</span>`;
 const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
 const THEMES = [{ id: 'bronze', label: 'Bronze' }, { id: 'bois', label: 'Noyer' }, { id: 'nuit', label: 'Nuit' }, { id: 'marbre', label: 'Marbre' }, { id: 'vert', label: 'Jade' }, { id: 'bleu', label: 'Ardoise' }, { id: 'rubis', label: 'Rubis' }];
-const ACCENTS = [['Or', '#d4af37'], ['Champagne', '#e8cf9a'], ['Rubis', '#e0245e'], ['Grenat', '#b4233c'], ['Émeraude', '#2fbf71'], ['Saphir', '#3b82f6'], ['Améthyste', '#9b6bdf'], ['Cuivre', '#c8784a'], ['Platine', '#cfd6de']];
+const ACCENTS = [['Laiton', '#b8975a'], ['Or', '#d4af37'], ['Champagne', '#e8cf9a'], ['Rubis', '#e0245e'], ['Grenat', '#b4233c'], ['Émeraude', '#2fbf71'], ['Saphir', '#3b82f6'], ['Améthyste', '#9b6bdf'], ['Cuivre', '#c8784a'], ['Platine', '#cfd6de']];
 const GOOD = ['best', 'brilliant', 'great'];
 
 const store = (() => {
@@ -55,7 +55,8 @@ const store = (() => {
   for (const k of Object.keys(CATS)) d.ratings[k] ||= newRating(1000);
   d.daily ||= { last: null, streak: 0, best: 0, done: {} };
   d.best ||= {};
-  d.prefs = { accent: '#d4af37', anim: true, fx: true, voice: true, callouts: true, ...(d.prefs || {}) };
+  d.prefs = { accent: '#b8975a', anim: true, fx: true, voice: true, callouts: true, ...(d.prefs || {}) };
+  if (!d.prefs.club) { if (d.prefs.accent === '#d4af37') d.prefs.accent = '#b8975a'; d.prefs.club = true; } // ancien or par défaut → laiton mat
   return { d, save() { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch {} } };
 })();
 store.save();
@@ -82,8 +83,19 @@ function toast(msg, ms = 2600) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), ms);
 }
-function modal(html) { $('#modalBox').innerHTML = html; $('#modal').classList.remove('hidden'); }
-function closeModal() { $('#modal').classList.add('hidden'); }
+let lastFocus = null;
+function modal(html) {
+  if ($('#modal').classList.contains('hidden')) lastFocus = document.activeElement;
+  $('#modalBox').innerHTML = html; $('#modal').classList.remove('hidden');
+  requestAnimationFrame(() => $('#modalBox').querySelector('button, a, input')?.focus({ preventScroll: true }));
+}
+function closeModal() {
+  if ($('#modal').classList.contains('hidden')) return;
+  $('#modal').classList.add('hidden');
+  try { lastFocus?.focus?.({ preventScroll: true }); } catch {}
+}
+const modalDismissable = () => G?.over || puzzles.active || !!$('#modalBox .settings-modal');
+const srSay = t => { const el = $('#srLive'); if (el) { el.textContent = ''; setTimeout(() => { el.textContent = t; }, 30); } };
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('hidden', s.id !== id));
   document.body.dataset.screen = id;
@@ -107,6 +119,7 @@ function announce(m, chess, bd) {
   const co = detect(m, chess); if (!co) return;
   if (store.d.prefs.callouts) bd.callout(co.text, co.icon);
   speak(co.say);
+  srSay(co.text);
 }
 function fmtClock(ms) {
   ms = Math.max(0, ms);
@@ -334,6 +347,7 @@ function render(o = {}) {
   renderMoves();
   renderReview();
   renderActions();
+  document.body.classList.toggle('reviewing', !!G.over);
 }
 
 function renderEvalBar() {
@@ -548,13 +562,14 @@ function drawGraph() {
   const w = cv.clientWidth || 300, H = 80, dpr = devicePixelRatio || 1;
   cv.width = w * dpr; cv.height = H * dpr;
   const x = cv.getContext('2d'); x.scale(dpr, dpr);
-  x.fillStyle = '#141318'; x.fillRect(0, 0, w, H);
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  x.fillStyle = css('--ink'); x.fillRect(0, 0, w, H);
   const X = i => (n ? i / n : 0) * w, Y = wp => H - wp / 100 * H;
   x.beginPath(); x.moveTo(0, H);
   ev.forEach((e, i) => { if (e) x.lineTo(X(i), Y(e.wp)); });
   x.lineTo(X(ev.length - 1), H); x.closePath();
-  x.fillStyle = '#ece6d6'; x.fill();
-  x.strokeStyle = 'rgba(128,128,128,.6)'; x.lineWidth = 1; x.beginPath(); x.moveTo(0, H / 2); x.lineTo(w, H / 2); x.stroke();
+  x.fillStyle = css('--paper'); x.fill();
+  x.strokeStyle = css('--ash'); x.lineWidth = 1; x.beginPath(); x.moveTo(0, H / 2); x.lineTo(w, H / 2); x.stroke();
   A.cls.forEach((c, i) => {
     if (!c || !['brilliant', 'great', 'mistake', 'miss', 'blunder'].includes(c.cls) || !ev[i + 1]) return;
     x.fillStyle = CLASSES[c.cls].color; x.beginPath(); x.arc(X(i + 1), Y(ev[i + 1].wp), 3.5, 0, 7); x.fill();
@@ -701,6 +716,7 @@ function goHome(fromPop = false) {
   }
   closeOnline(); closeModal(); puzzles.close();
   G = null;
+  document.body.classList.remove('reviewing');
   if (location.hash) history.replaceState(history.state, '', location.pathname);
   renderHome(); showScreen('home');
   if (!fromPop && history.state?.s === 'sub') history.back();
@@ -778,12 +794,13 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('pointerdown', unlockAudio, { once: true });
 document.addEventListener('keydown', e => {
-  if (!G || e.target.tagName === 'INPUT') return;
+  if (e.key === 'Escape' && !$('#modal').classList.contains('hidden') && modalDismissable()) { closeModal(); return; }
+  if (!G || e.target.tagName === 'INPUT' || !$('#modal').classList.contains('hidden')) return;
   const k = { ArrowLeft: 'prev', ArrowRight: 'next', ArrowUp: 'first', ArrowDown: 'last' }[e.key];
   if (k) { e.preventDefault(); ACT[k](); }
 });
 $('#nameInput').addEventListener('change', e => { store.d.name = cleanName(e.target.value); store.save(); renderHome(); });
-$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && (G?.over || puzzles.active || $('#modalBox .settings-modal'))) closeModal(); });
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && modalDismissable()) closeModal(); });
 
 function openSettings() {
   const P = store.d.prefs, d = store.d;

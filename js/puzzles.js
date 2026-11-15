@@ -1,11 +1,11 @@
 // Problèmes : du jour, entraînement classé, survie (3 vies), contre-la-montre (3 min)
 // Base : lichess puzzle database (CC0)
 import { Chess } from '../lib/chess.js';
-import { Board } from './board.js?v=6';
-import { update, shown, provisional } from './rating.js?v=6';
-import { play } from './sound.js?v=6';
-import { confetti, shake } from './fx.js?v=6';
-import { ic } from './ui.js?v=6';
+import { Board } from './board.js?v=7';
+import { update, shown, provisional } from './rating.js?v=7';
+import { play } from './sound.js?v=7';
+import { confetti, shake } from './fx.js?v=7';
+import { ic } from './ui.js?v=7';
 
 const THEMES = {
   mateIn1: 'Mat en 1', mateIn2: 'Mat en 2', mateIn3: 'Mat en 3', mateIn4: 'Mat en 4', mate: 'Mat',

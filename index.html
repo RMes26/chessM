@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta name="theme-color" content="#0e0c0a">
+<meta name="theme-color" content="#173226">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
@@ -15,16 +15,15 @@
 <title>ChessM</title>
 <link rel="icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/cormorant-garamond-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="fonts/montserrat-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
 <script>
   // Filet de sécurité : si un vieux fichier en cache provoque une erreur, on recharge une seule fois
   addEventListener('error', function () { try { if (!sessionStorage.getItem('cm-reload')) { sessionStorage.setItem('cm-reload', '1'); setTimeout(function () { location.reload(); }, 300); } } catch (_) {} });
   addEventListener('load', function () { setTimeout(function () { try { sessionStorage.removeItem('cm-reload'); } catch (_) {} }, 5000); });
 </script>
 <link rel="stylesheet" href="lib/pieces.css">
-<link rel="stylesheet" href="css/style.css?v=6">
+<link rel="stylesheet" href="css/style.css?v=7">
 <script src="lib/peerjs.min.js" defer></script>
-<script type="module" src="js/app.js?v=6"></script>
+<script type="module" src="js/app.js?v=7"></script>
 </head>
 <body data-theme="bronze" data-screen="home">
 <header class="topbar">
@@ -148,5 +147,6 @@
 
 <div class="modal hidden" id="modal"><div class="modal-box" id="modalBox" role="dialog" aria-modal="true"></div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="sr-only" id="srLive" aria-live="assertive"></div>
 </body>
 </html>

@@ -23,6 +23,12 @@ export class Board {
     el.addEventListener('pointerup', e => this.up(e));
     el.addEventListener('pointercancel', () => this.cancelDrag());
     el.addEventListener('contextmenu', e => e.preventDefault());
+    // Clavier : flèches pour déplacer le curseur, Entrée/Espace pour prendre puis poser une pièce
+    el.tabIndex = 0;
+    el.setAttribute('role', 'application');
+    el.setAttribute('aria-label', 'Échiquier. Flèches pour choisir une case, Entrée pour prendre ou poser une pièce.');
+    el.addEventListener('keydown', e => this.key(e));
+    el.addEventListener('blur', () => { this.cursor = null; this.applyHighlights(); });
   }
 
   xy(sq) { const f = sq.charCodeAt(0) - 97, r = +sq[1] - 1; return this.orientation === 'w' ? [f, 7 - r] : [7 - f, r]; }
@@ -132,9 +138,10 @@ export class Board {
   }
 
   applyHighlights() {
-    for (const d of Object.values(this.sqEls)) d.classList.remove('last', 'check', 'sel', 'dest', 'cap');
+    for (const d of Object.values(this.sqEls)) d.classList.remove('last', 'check', 'sel', 'dest', 'cap', 'kbd');
     (this.hl.last || []).forEach(s => this.sqEls[s]?.classList.add('last'));
     if (this.hl.check) this.sqEls[this.hl.check]?.classList.add('check');
+    if (this.cursor) this.sqEls[this.cursor]?.classList.add('kbd');
     if (this.selected) {
       this.sqEls[this.selected].classList.add('sel');
       for (const s of this.dests) this.sqEls[s].classList.add('dest', ...(this.position.has(s) ? ['cap'] : []));
@@ -153,6 +160,24 @@ export class Board {
     this.applyHighlights();
   }
   deselect() { this.selected = null; this.dests = new Set(); }
+
+  key(e) {
+    const dirs = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+    if (!this.interactive && !dirs[e.key]) return;
+    if (dirs[e.key]) {
+      e.preventDefault(); e.stopPropagation();
+      const [x, y] = this.cursor ? this.xy(this.cursor) : [3, 6];
+      const [dx, dy] = dirs[e.key];
+      this.cursor = this.sqAt(Math.max(0, Math.min(7, x + dx)), Math.max(0, Math.min(7, y + dy)));
+      this.applyHighlights();
+    } else if ((e.key === 'Enter' || e.key === ' ') && this.cursor) {
+      e.preventDefault(); e.stopPropagation();
+      const sq = this.cursor, p = this.position.get(sq);
+      if (this.selected && this.dests.has(sq)) this.tryMove(this.selected, sq);
+      else if (p && p.color === this.interactive) this.select(sq);
+      else { this.deselect(); this.applyHighlights(); }
+    } else if (e.key === 'Escape' && this.selected) { this.deselect(); this.applyHighlights(); }
+  }
 
   down(e) {
     if (e.button > 0 || !this.promoEl.classList.contains('hidden')) return;

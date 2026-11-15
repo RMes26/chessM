@@ -1,9 +1,9 @@
 // Service worker : jeu hors ligne + mise à jour automatique (réseau d'abord pour le code)
-const V = 'chessm-v6';
-const Q = '?v=6'; // même numéro que dans index.html et les imports
+const V = 'chessm-v7';
+const Q = '?v=7'; // même numéro que dans index.html et les imports
 const CORE = ['./', 'index.html', 'credits.html', 'css/style.css' + Q, 'lib/pieces.css', 'lib/chess.js', 'lib/peerjs.min.js',
   'lib/stockfish-18-lite-single.js', 'lib/stockfish-18-lite-single.wasm', 'js/app.js' + Q, 'js/board.js' + Q, 'js/engine.js' + Q,
-  'js/analysis.js' + Q, 'js/ui.js' + Q, 'icons/sprite.svg', 'fonts/montserrat-latin-500-normal.woff2', 'fonts/montserrat-latin-600-normal.woff2', 'fonts/montserrat-latin-700-normal.woff2', 'js/callout.js' + Q, 'fonts/cormorant-garamond-latin-600-normal.woff2', 'fonts/cormorant-garamond-latin-700-normal.woff2', 'js/sound.js' + Q, 'js/online.js' + Q, 'js/rating.js' + Q, 'js/fx.js' + Q, 'js/puzzles.js' + Q, 'data/puzzles.json',
+  'js/analysis.js' + Q, 'js/ui.js' + Q, 'icons/sprite.svg', 'js/callout.js' + Q, 'fonts/cormorant-garamond-latin-600-normal.woff2', 'fonts/cormorant-garamond-latin-700-normal.woff2', 'js/sound.js' + Q, 'js/online.js' + Q, 'js/rating.js' + Q, 'js/fx.js' + Q, 'js/puzzles.js' + Q, 'data/puzzles.json',
   'sounds/move_white.wav', 'sounds/move_black.wav', 'sounds/capture_white.wav', 'sounds/capture_black.wav',
   'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(CORE.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
