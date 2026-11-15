@@ -15,10 +15,15 @@
 <title>ChessM</title>
 <link rel="icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/cormorant-garamond-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<script>
+  // Filet de sécurité : si un vieux fichier en cache provoque une erreur, on recharge une seule fois
+  addEventListener('error', function () { try { if (!sessionStorage.getItem('cm-reload')) { sessionStorage.setItem('cm-reload', '1'); setTimeout(function () { location.reload(); }, 300); } } catch (_) {} });
+  addEventListener('load', function () { setTimeout(function () { try { sessionStorage.removeItem('cm-reload'); } catch (_) {} }, 5000); });
+</script>
 <link rel="stylesheet" href="lib/pieces.css">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=5">
 <script src="lib/peerjs.min.js" defer></script>
-<script type="module" src="js/app.js"></script>
+<script type="module" src="js/app.js?v=5"></script>
 </head>
 <body data-theme="bronze">
 <header class="topbar">

@@ -1,13 +1,13 @@
 import { Chess } from '../lib/chess.js';
-import { Board } from './board.js';
-import { Engine, botMove } from './engine.js';
-import { analyseGame, CLASSES, evalText } from './analysis.js';
-import { play, sound, unlockAudio } from './sound.js';
-import { Online } from './online.js';
-import { CATS, catOf, newRating, update as glicko, shown, provisional } from './rating.js';
-import { confetti, shake } from './fx.js';
-import { createPuzzles, currentStreak } from './puzzles.js';
-import { detect, speak, callouts } from './callout.js';
+import { Board } from './board.js?v=5';
+import { Engine, botMove } from './engine.js?v=5';
+import { analyseGame, CLASSES, evalText } from './analysis.js?v=5';
+import { play, sound, unlockAudio } from './sound.js?v=5';
+import { Online } from './online.js?v=5';
+import { CATS, catOf, newRating, update as glicko, shown, provisional } from './rating.js?v=5';
+import { confetti, shake } from './fx.js?v=5';
+import { createPuzzles, currentStreak } from './puzzles.js?v=5';
+import { detect, speak, callouts } from './callout.js?v=5';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
