@@ -1,13 +1,14 @@
 // Effets visuels : confettis, secousse
 export function confetti(n = 120) {
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || document.body.classList.contains('no-fx')) return;
   const cv = document.createElement('canvas');
   cv.className = 'confetti';
   document.body.appendChild(cv);
   const dpr = devicePixelRatio || 1, W = innerWidth, H = innerHeight;
   cv.width = W * dpr; cv.height = H * dpr;
   const x = cv.getContext('2d'); x.scale(dpr, dpr);
-  const cols = ['#81b64c', '#f0c15c', '#5c8bb0', '#e57373', '#ba68c8', '#ffffff'];
+  const acc = getComputedStyle(document.documentElement).getPropertyValue('--acc').trim() || '#d4af37';
+  const cols = [acc, acc, '#fff6dc', '#ffffff', '#b9b2a2', acc];
   const ps = Array.from({ length: n }, () => ({
     x: W / 2 + (Math.random() - .5) * W * .3, y: H * .35, vx: (Math.random() - .5) * 14, vy: -Math.random() * 14 - 4,
     s: 5 + Math.random() * 6, r: Math.random() * 6, vr: (Math.random() - .5) * .3, c: cols[Math.floor(Math.random() * cols.length)]
@@ -24,7 +25,7 @@ export function confetti(n = 120) {
 }
 
 export function shake(el) {
-  if (!el) return;
+  if (!el || document.body.classList.contains('no-fx')) return;
   el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
   setTimeout(() => el.classList.remove('shake'), 500);
 }

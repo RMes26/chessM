@@ -38,7 +38,7 @@ async function evalPosition(engine, fen, opts) {
   };
   const a = conv(r.lines[0]) || { cp: 0, mate: null, wp: 50 };
   const b = conv(r.lines[1]);
-  return { ...a, best: r.bestmove, secondWp: b ? b.wp : null };
+  return { ...a, best: r.bestmove, pv: (r.lines[0]?.pv || []).slice(0, 12), secondWp: b ? b.wp : null };
 }
 
 // Sacrifice : pièce (≥ cavalier) laissée en prise sans compensation immédiate

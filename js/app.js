@@ -7,6 +7,7 @@ import { Online } from './online.js';
 import { CATS, catOf, newRating, update as glicko, shown, provisional } from './rating.js';
 import { confetti, shake } from './fx.js';
 import { createPuzzles, currentStreak } from './puzzles.js';
+import { detect, speak, callouts } from './callout.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -34,13 +35,15 @@ const TCS = [
   { id: '15+10', label: '15+10', sub: 'Rapide', base: 900, inc: 10 }
 ];
 const COLORS = [{ id: 'w', label: '♔ Blancs' }, { id: 'r', label: '🎲 Aléatoire' }, { id: 'b', label: '♚ Noirs' }];
-const THEMES = [{ id: 'bois', label: 'Bois' }, { id: 'vert', label: 'Vert' }, { id: 'bleu', label: 'Bleu' }, { id: 'marbre', label: 'Marbre' }];
+const THEMES = [{ id: 'bronze', label: 'Bronze' }, { id: 'bois', label: 'Noyer' }, { id: 'nuit', label: 'Nuit' }, { id: 'marbre', label: 'Marbre' }, { id: 'vert', label: 'Jade' }, { id: 'bleu', label: 'Ardoise' }, { id: 'rubis', label: 'Rubis' }];
+const ACCENTS = [['Or', '#d4af37'], ['Champagne', '#e8cf9a'], ['Rubis', '#e0245e'], ['Grenat', '#b4233c'], ['Émeraude', '#2fbf71'], ['Saphir', '#3b82f6'], ['Améthyste', '#9b6bdf'], ['Cuivre', '#c8784a'], ['Platine', '#cfd6de']];
+const GOOD = ['best', 'brilliant', 'great'];
 
 const store = (() => {
   const KEY = 'echecs.v1';
   let d = {};
   try { d = JSON.parse(localStorage.getItem(KEY)) || {}; } catch {}
-  d = { name: 'Joueur', elo: 1000, games: 0, w: 0, d: 0, l: 0, tc: '10+0', color: 'w', theme: 'bois', sound: true, ...d };
+  d = { name: 'Joueur', elo: 1000, games: 0, w: 0, d: 0, l: 0, tc: '10+0', color: 'w', theme: 'bronze', sound: true, ...d };
   if (!d.ratings) { // migration de l'ancien Elo simple vers Glicko-2
     d.ratings = {};
     for (const k of Object.keys(CATS)) d.ratings[k] = k === 'puzzle' ? newRating(1000) : newRating(d.elo, d.games ? 180 : 250);
@@ -48,6 +51,7 @@ const store = (() => {
   for (const k of Object.keys(CATS)) d.ratings[k] ||= newRating(1000);
   d.daily ||= { last: null, streak: 0, best: 0, done: {} };
   d.best ||= {};
+  d.prefs = { accent: '#d4af37', anim: true, fx: true, voice: true, callouts: true, ...(d.prefs || {}) };
   return { d, save() { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch {} } };
 })();
 store.save();
@@ -75,7 +79,23 @@ function toast(msg, ms = 2600) {
 function modal(html) { $('#modalBox').innerHTML = html; $('#modal').classList.remove('hidden'); }
 function closeModal() { $('#modal').classList.add('hidden'); }
 function showScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('hidden', s.id !== id)); window.scrollTo(0, 0); }
-function applyTheme() { document.body.dataset.theme = store.d.theme; }
+const hexRgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+const mix = (c, t, to) => c.map((v, i) => Math.round(v + (to[i] - v) * t)).join(',');
+const accent = () => store.d.prefs.accent;
+function applyTheme() {
+  const P = store.d.prefs, b = document.body, st = document.documentElement.style, rgb = hexRgb(P.accent);
+  b.dataset.theme = store.d.theme;
+  st.setProperty('--acc', P.accent); st.setProperty('--acc-rgb', rgb.join(','));
+  st.setProperty('--acc-hi', `rgb(${mix(rgb, .45, [255, 255, 255])})`); st.setProperty('--acc-lo', `rgb(${mix(rgb, .45, [0, 0, 0])})`);
+  st.setProperty('--acc-ink', (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255 > 0.55 ? '#17130b' : '#ffffff');
+  b.classList.toggle('no-anim', !P.anim); b.classList.toggle('no-fx', !P.fx);
+  sound.enabled = store.d.sound; callouts.voice = P.voice; callouts.visual = P.callouts;
+}
+function announce(m, chess, bd) {
+  const co = detect(m, chess); if (!co) return;
+  if (store.d.prefs.callouts) bd.callout(co.text, co.icon);
+  speak(co.say);
+}
 function fmtClock(ms) {
   ms = Math.max(0, ms);
   const s = ms / 1000;
@@ -107,7 +127,8 @@ function renderHome() {
   $('#stats').innerHTML = `<span class="w">${d.w} V</span> · <span class="d">${d.d} N</span> · <span class="l">${d.l} D</span>`;
   $('#tcChips').innerHTML = TCS.map(t => `<button class="chip-btn ${d.tc === t.id ? 'on' : ''}" data-act="tc" data-v="${t.id}"><b>${t.label}</b><small>${t.sub}</small></button>`).join('');
   $('#colorChips').innerHTML = COLORS.map(c => `<button class="chip-btn ${d.color === c.id ? 'on' : ''}" data-act="color" data-v="${c.id}">${c.label}</button>`).join('');
-  $('#themeChips').innerHTML = THEMES.map(t => `<button class="chip-btn theme-${t.id} ${d.theme === t.id ? 'on' : ''}" data-act="theme" data-v="${t.id}"><i class="sw"></i>${t.label}</button>`).join('');
+  const hr = new Date().getHours();
+  $('#greet').textContent = `${hr >= 18 || hr < 5 ? 'Bonsoir' : 'Bonjour'},`;
   $('#botGrid').innerHTML = BOTS.map((b, i) => `<button class="bot" data-act="bot" data-i="${i}">
       <span class="avatar" style="background:${b.color}">${b.name[0]}</span>
       <span class="bot-info"><b>${b.name}</b><small>${b.desc}</small></span><span class="bot-elo">${b.elo}</span></button>`).join('');
@@ -115,12 +136,13 @@ function renderHome() {
 }
 function drawSpark() {
   const cv = $('#eloSpark'), h = store.d.ratings[curCat()].hist;
+  cv.classList.toggle('empty', h.length < 2);
   const w = cv.clientWidth || 200, H = 40, dpr = devicePixelRatio || 1;
   cv.width = w * dpr; cv.height = H * dpr;
   const x = cv.getContext('2d'); x.scale(dpr, dpr); x.clearRect(0, 0, w, H);
   if (h.length < 2) return;
   const mn = Math.min(...h) - 10, mx = Math.max(...h) + 10;
-  x.strokeStyle = '#81b64c'; x.lineWidth = 2; x.beginPath();
+  x.strokeStyle = accent(); x.lineWidth = 2; x.beginPath();
   h.forEach((v, i) => { const px = i / (h.length - 1) * (w - 4) + 2, py = H - 4 - (v - mn) / (mx - mn) * (H - 8); i ? x.lineTo(px, py) : x.moveTo(px, py); });
   x.stroke();
 }
@@ -172,7 +194,9 @@ function playMove(mv, remote = false) {
   G.viewPly = ply;
   play(G.chess.inCheck() ? 'check' : m.captured ? 'capture' : /[kq]/.test(m.flags) ? 'castle' : 'move');
   if (G.mode === 'online' && !remote) online?.send({ t: 'move', uci: m.lan, clock: G.clock });
+  stopScenario(false);
   render(prev === ply - 1 ? { move: m } : {});
+  announce(m, G.chess, board);
   if (!checkEnd() && G.mode === 'bot' && G.chess.turn() !== G.myColor) scheduleBot();
   return true;
 }
@@ -256,20 +280,30 @@ function showEndModal() {
 // ---------- Rendu de la partie ----------
 function render(o = {}) {
   if (!G) return;
-  const h = hist(), p = G.viewPly, fen = fenAt(p);
+  const h = hist(), p = G.viewPly, S = G.scn;
+  const fen = S ? S.fens[S.i] : fenAt(p);
   const tmp = new Chess(fen);
   let check = null;
   if (tmp.inCheck()) check = tmp.board().flat().find(x => x && x.type === 'k' && x.color === tmp.turn())?.square;
-  board.setPosition(fen, { move: o.move, reverse: o.reverse, lastMove: p > 0 ? h[p - 1] : null, check });
-  board.setInteractive(canPlay() ? G.myColor : null, sq => G.chess.moves({ square: sq, verbose: true }));
-  // Analyse : badge, flèche, barre
+  const last = S ? (S.i > 0 ? S.moves[S.i - 1] : (S.basePly > 0 ? h[S.basePly - 1] : null)) : (p > 0 ? h[p - 1] : null);
+  board.setPosition(fen, { move: o.move, reverse: o.reverse, lastMove: last, check, ghost: !!S });
+  board.setInteractive(!S && canPlay() ? G.myColor : null, sq => G.chess.moves({ square: sq, verbose: true }));
+  // Analyse : badge, flèche + pièce fantôme du meilleur coup
   const A = G.analysis;
-  const c = A && p > 0 ? A.cls[p - 1] : null;
-  if (c) {
+  const c = !S && A && p > 0 ? A.cls[p - 1] : null;
+  board.setGhost(null);
+  if (S) {
+    board.setBadge(null);
+    const nx = S.moves[S.i];
+    board.setArrows(nx ? [{ from: nx.from, to: nx.to, color: accent() }] : []);
+  } else if (c) {
     const info = CLASSES[c.cls];
     board.setBadge({ sq: h[p - 1].to, sym: info.sym, color: info.color });
     const best = A.evals[p - 1]?.best;
-    board.setArrows(best && !['best', 'brilliant', 'great'].includes(c.cls) ? [{ from: best.slice(0, 2), to: best.slice(2, 4), color: '#81b64c' }] : []);
+    if (best && !GOOD.includes(c.cls)) {
+      board.setArrows([{ from: best.slice(0, 2), to: best.slice(2, 4), color: accent() }]);
+      board.setGhost({ from: best.slice(0, 2), to: best.slice(2, 4), promotion: best[4], piece: new Chess(fenAt(p - 1)).get(best.slice(0, 2)) });
+    } else board.setArrows([]);
   } else { board.setBadge(null); board.setArrows([]); }
   renderEvalBar();
   renderBars();
@@ -403,8 +437,19 @@ function renderReview() {
     const verb = { brilliant: 'est un coup brillant !', great: 'est un très bon coup : le seul qui tient.', best: 'est le meilleur coup.', excellent: 'est excellent.', good: 'est un bon coup.', inaccuracy: 'est une imprécision.', mistake: 'est une erreur.', miss: ': occasion manquée de punir l\'adversaire.', blunder: 'est une gaffe.' }[c.cls];
     const best = A.evals[p - 1]?.best;
     const alt = best && !['best', 'brilliant', 'great'].includes(c.cls) ? `<div class="bestline">Meilleur coup : <b>${esc(frSan(uciToSan(fenAt(p - 1), best)))}</b></div>` : '';
-    comment = `<div class="cmt"><i class="cglyph" style="background:${info.color}">${info.sym}</i><div><b style="color:${info.color}">${esc(san)}</b> ${verb}${alt}</div><span class="cev">${evalText(A.evals[p])}</span></div>`;
+    const mover = h[p - 1].color, evB = A.evals[p - 1], evA = A.evals[p];
+    const had = mateFor(evB, mover), still = mateFor(evA, mover), opp = mateFor(evA, other(mover));
+    let mate = '';
+    if (evA?.mate === 0) mate = '<div class="mate ok">♚ Échec et mat !</div>';
+    else if (had && still && still < had) mate = `<div class="mate ok">♛ Mat forcé : plus que ${still} coup${still > 1 ? 's' : ''} !</div>`;
+    else if (had && still) mate = `<div class="mate">♛ Toujours un mat en ${still}, mais il y avait plus rapide (mat en ${had}).</div>`;
+    else if (had) mate = `<div class="mate miss">♛ Il y avait un mat en ${had} !</div>`;
+    if (opp) mate += `<div class="mate warn">⚠ L'adversaire a maintenant un mat en ${opp}.</div>`;
+    const btn = !GOOD.includes(c.cls) && evB?.pv?.length ? `<button class="btn sm gold" data-act="scnAlt">🔮 Voir ce qu'il fallait jouer</button>`
+      : evA?.pv?.length ? `<button class="btn sm" data-act="scnNext">🔮 Voir la suite idéale</button>` : '';
+    comment = `<div class="cmt"><i class="cglyph" style="background:${info.color}">${info.sym}</i><div><b style="color:${info.color}">${esc(san)}</b> ${verb}${alt}</div><span class="cev">${evalText(A.evals[p])}</span></div>${mate}${btn}`;
   } else if (p > 0) comment = '<span class="muted">Analyse de ce coup en cours…</span>';
+  if (G.scn) comment = scenarioHtml();
   const rows = Object.keys(CLASSES).map(k => {
     const i = CLASSES[k];
     return `<tr><td class="cw-n">${A.done ? (A.counts.w[k] || 0) : ''}</td><td><i class="mglyph" style="background:${i.color}">${i.sym}</i> ${i.label}</td><td class="cb-n">${A.done ? (A.counts.b[k] || 0) : ''}</td></tr>`;
@@ -418,29 +463,85 @@ function renderReview() {
   drawGraph();
 }
 
+const mateFor = (ev, col) => ev && ev.mate != null && ev.mate !== 0 && ((col === 'w') === (ev.mate > 0)) ? Math.abs(ev.mate) : 0;
+
+// ---------- Scénarios (meilleure ligne jouée en pièces fantômes) ----------
+function buildScenario(basePly, pv, title) {
+  const c = new Chess(fenAt(basePly)), fens = [c.fen()], moves = [];
+  for (const u of pv) {
+    try { moves.push(c.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] })); fens.push(c.fen()); } catch { break; }
+  }
+  return moves.length ? { basePly, fens, moves, i: 0, title, timer: null, playing: false, mate: c.isCheckmate() } : null;
+}
+function startScenario(kind) {
+  const A = G?.analysis, p = G?.viewPly; if (!A || !p) return;
+  stopScenario(false);
+  const S = kind === 'alt' ? buildScenario(p - 1, A.evals[p - 1]?.pv || [], 'Ce qu\'il fallait jouer') : buildScenario(p, A.evals[p]?.pv || [], 'La suite idéale');
+  if (!S) { toast('Pas de ligne disponible pour ce coup.'); render(); return; }
+  G.scn = S; render(); playScenario();
+}
+function playScenario() {
+  const S = G?.scn; if (!S) return;
+  if (S.i >= S.moves.length) { S.i = 0; render(); }
+  S.playing = true; clearTimeout(S.timer);
+  const step = () => {
+    if (!G || G.scn !== S || !S.playing) return;
+    if (S.i >= S.moves.length) { S.playing = false; renderReview(); return; }
+    scnStep(1, true); S.timer = setTimeout(step, 1000);
+  };
+  S.timer = setTimeout(step, 600); renderReview();
+}
+function scnStep(d, auto = false) {
+  const S = G?.scn; if (!S) return;
+  if (!auto) { S.playing = false; clearTimeout(S.timer); }
+  const ni = S.i + d; if (ni < 0 || ni > S.moves.length) { renderReview(); return; }
+  const o = d > 0 ? { move: S.moves[ni - 1] } : { move: S.moves[S.i - 1], reverse: true };
+  S.i = ni;
+  if (d > 0) play(S.moves[ni - 1].captured ? 'capture' : 'move');
+  render(o);
+}
+function stopScenario(rerender = true) {
+  if (!G?.scn) return;
+  clearTimeout(G.scn.timer); G.scn = null;
+  if (rerender) render();
+}
+function scenarioHtml() {
+  const S = G.scn, A = G.analysis;
+  const ev = A.evals[S.basePly], n = Math.abs(ev?.mate || 0);
+  const line = S.moves.map((m, k) => {
+    const num = S.fens[k].split(' ')[5];
+    const pre = m.color === 'w' ? `<i class="mn">${num}.</i>` : k === 0 ? `<i class="mn">${num}…</i>` : '';
+    return `${pre}<span class="sm-mv ${k === S.i - 1 ? 'cur' : ''} ${k >= S.i ? 'todo' : ''}">${esc(frSan(m.san))}</span>`;
+  }).join(' ');
+  return `<div class="scn"><div class="scn-head">🔮 ${S.title}${S.mate && n ? ` <span class="mate-pill">Mat en ${n}</span>` : ''}</div>
+    <div class="scn-line">${line}</div>
+    <div class="scn-ctl"><button class="btn sm" data-act="scnPrev">◀</button><button class="btn sm" data-act="scnToggle">${S.playing ? '⏸ Pause' : '▶ Lire'}</button><button class="btn sm" data-act="scnFwd">▶</button><button class="btn sm ghost" data-act="scnClose">✕ Fermer</button></div></div>`;
+}
+
 function drawGraph() {
   const cv = $('#graph'); if (!cv) return;
   const A = G.analysis, ev = A.evals, n = G.chess.history().length;
   const w = cv.clientWidth || 300, H = 80, dpr = devicePixelRatio || 1;
   cv.width = w * dpr; cv.height = H * dpr;
   const x = cv.getContext('2d'); x.scale(dpr, dpr);
-  x.fillStyle = '#403d39'; x.fillRect(0, 0, w, H);
+  x.fillStyle = '#141318'; x.fillRect(0, 0, w, H);
   const X = i => (n ? i / n : 0) * w, Y = wp => H - wp / 100 * H;
   x.beginPath(); x.moveTo(0, H);
   ev.forEach((e, i) => { if (e) x.lineTo(X(i), Y(e.wp)); });
   x.lineTo(X(ev.length - 1), H); x.closePath();
-  x.fillStyle = '#f0f0f0'; x.fill();
+  x.fillStyle = '#ece6d6'; x.fill();
   x.strokeStyle = 'rgba(128,128,128,.6)'; x.lineWidth = 1; x.beginPath(); x.moveTo(0, H / 2); x.lineTo(w, H / 2); x.stroke();
   A.cls.forEach((c, i) => {
     if (!c || !['brilliant', 'great', 'mistake', 'miss', 'blunder'].includes(c.cls) || !ev[i + 1]) return;
     x.fillStyle = CLASSES[c.cls].color; x.beginPath(); x.arc(X(i + 1), Y(ev[i + 1].wp), 3.5, 0, 7); x.fill();
   });
-  x.strokeStyle = '#81b64c'; x.lineWidth = 2; x.beginPath(); x.moveTo(X(G.viewPly), 0); x.lineTo(X(G.viewPly), H); x.stroke();
+  x.strokeStyle = accent(); x.lineWidth = 2; x.beginPath(); x.moveTo(X(G.viewPly), 0); x.lineTo(X(G.viewPly), H); x.stroke();
   cv.onclick = e => { const r = cv.getBoundingClientRect(); goto(Math.round((e.clientX - r.left) / r.width * n)); };
 }
 
 function goto(p) {
   if (!G) return;
+  if (G.scn) { stopScenario(false); G.viewPly = Math.max(0, Math.min(G.chess.history().length, p)); render(); return; }
   const n = G.chess.history().length;
   p = Math.max(0, Math.min(n, p));
   const cur = G.viewPly; if (p === cur) return;
@@ -524,7 +625,7 @@ async function hostGame() {
     const id = await online.host();
     hostLink = location.origin + location.pathname + '#j=' + id;
     const tc = tcOf(store.d.tc), col = COLORS.find(c => c.id === store.d.color);
-    const wa = 'https://wa.me/?text=' + encodeURIComponent('Je te défie aux échecs ♟️ Clique ici : ' + hostLink);
+    const wa = 'https://wa.me/?text=' + encodeURIComponent('Je te défie sur ChessM ♟️ Clique ici : ' + hostLink);
     modal(`<h2>Défier un ami</h2>
       <p>Envoie ce lien. La partie démarre dès que ton ami l'ouvre.<br><b>Garde cette page ouverte.</b></p>
       <input class="linkbox" readonly value="${esc(hostLink)}" onclick="this.select()">
@@ -598,16 +699,24 @@ const ACT = {
   toggleSound: () => { store.d.sound = sound.enabled = !store.d.sound; store.save(); renderHome(); },
   tc: b => { store.d.tc = b.dataset.v; store.save(); renderHome(); },
   color: b => { store.d.color = b.dataset.v; store.save(); renderHome(); },
-  theme: b => { store.d.theme = b.dataset.v; store.save(); applyTheme(); renderHome(); },
+  theme: b => { store.d.theme = b.dataset.v; store.save(); applyTheme(); openSettings(); },
+  accent: b => { store.d.prefs.accent = b.dataset.v; store.save(); applyTheme(); openSettings(); },
+  settings: () => openSettings(),
+  scnAlt: () => startScenario('alt'),
+  scnNext: () => startScenario('next'),
+  scnToggle: () => { const S = G?.scn; if (!S) return; if (S.playing) { S.playing = false; clearTimeout(S.timer); renderReview(); } else playScenario(); },
+  scnPrev: () => scnStep(-1),
+  scnFwd: () => scnStep(1),
+  scnClose: () => stopScenario(),
   bot: b => startBot(+b.dataset.i),
   host: hostGame,
   cancelHost: () => { closeOnline(); closeModal(); },
   copyLink: () => { navigator.clipboard?.writeText(hostLink).then(() => toast('Lien copié !'), () => toast('Copie impossible : sélectionne le lien.')); },
-  shareLink: () => navigator.share?.({ title: 'Défi aux échecs', text: 'Je te défie aux échecs ♟️', url: hostLink }).catch(() => {}),
+  shareLink: () => navigator.share?.({ title: 'Défi ChessM', text: 'Je te défie sur ChessM ♟️', url: hostLink }).catch(() => {}),
   join: b => join(b.dataset.id),
   first: () => goto(0),
-  prev: () => goto(G ? G.viewPly - 1 : 0),
-  next: () => goto(G ? G.viewPly + 1 : 0),
+  prev: () => G?.scn ? scnStep(-1) : goto(G ? G.viewPly - 1 : 0),
+  next: () => G?.scn ? scnStep(1) : goto(G ? G.viewPly + 1 : 0),
   last: () => goto(G ? G.chess.history().length : 0),
   goto: b => goto(+b.dataset.ply),
   flip: () => { if (!G) return; board.setOrientation(other(board.orientation)); render(); },
@@ -642,7 +751,33 @@ document.addEventListener('keydown', e => {
   if (k) { e.preventDefault(); ACT[k](); }
 });
 $('#nameInput').addEventListener('change', e => { store.d.name = cleanName(e.target.value); store.save(); renderHome(); });
-$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && (G?.over || puzzles.active)) closeModal(); });
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && (G?.over || puzzles.active || $('#modalBox .settings-modal'))) closeModal(); });
+
+function openSettings() {
+  const P = store.d.prefs, d = store.d;
+  const tog = (k, label, desc, val) => `<label class="tog"><input type="checkbox" data-pref="${k}" ${val ? 'checked' : ''}><span class="knob"></span><span class="tl"><b>${label}</b><small>${desc}</small></span></label>`;
+  modal(`<div class="settings-modal"><h2>Paramètres</h2>
+    <h3>Couleur d'accent</h3>
+    <div class="swatches">${ACCENTS.map(([n, c]) => `<button class="swatch ${P.accent.toLowerCase() === c ? 'on' : ''}" data-act="accent" data-v="${c}" title="${n}" aria-label="${n}" style="--c:${c}"></button>`).join('')}
+      <label class="swatch custom ${ACCENTS.some(a => a[1] === P.accent.toLowerCase()) ? '' : 'on'}" title="Couleur libre"><input type="color" id="accentPick" value="${P.accent}" aria-label="Couleur libre"></label></div>
+    <h3>Plateau</h3>
+    <div class="chips">${THEMES.map(t => `<button class="chip-btn theme-${t.id} ${d.theme === t.id ? 'on' : ''}" data-act="theme" data-v="${t.id}"><i class="sw"></i>${t.label}</button>`).join('')}</div>
+    <h3>Son & voix</h3>
+    ${tog('sound', 'Effets sonores', 'Bruit des pièces et jingles', d.sound)}
+    ${tog('voice', 'Voix', '« Échec ! », « En passant ! »…', P.voice)}
+    ${tog('callouts', 'Annonces à l\'écran', 'Texte animé sur l\'échiquier', P.callouts)}
+    <h3>Animations</h3>
+    ${tog('anim', 'Animations des pièces', 'Glissement et rebond', P.anim)}
+    ${tog('fx', 'Effets visuels', 'Confettis et secousses', P.fx)}
+    <button class="btn primary wide" data-act="closeModal">Terminé</button></div>`);
+  $('#accentPick').addEventListener('input', e => { P.accent = e.target.value; store.save(); applyTheme(); });
+  $('#accentPick').addEventListener('change', () => openSettings());
+  $('#modalBox').querySelectorAll('[data-pref]').forEach(i => i.addEventListener('change', () => {
+    if (i.dataset.pref === 'sound') store.d.sound = i.checked; else P[i.dataset.pref] = i.checked;
+    store.save(); applyTheme(); renderHome();
+    if (i.dataset.pref === 'voice' && i.checked) speak('Voix activée');
+  }));
+}
 window.addEventListener('resize', () => { if (G?.analysis) drawGraph(); drawSpark(); });
 window.addEventListener('hashchange', joinFromHash);
 

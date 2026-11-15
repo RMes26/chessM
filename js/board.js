@@ -12,9 +12,11 @@ export class Board {
     el.classList.add('board');
     el.innerHTML = `<div class="sqs"></div><div class="pcs"></div>
       <svg class="arrows" viewBox="0 0 8 8"><defs><marker id="ah" markerWidth="4" markerHeight="4" refX="2.05" refY="2" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L4,2 L0,4 z" fill="context-stroke"/></marker></defs><g></g></svg>
-      <div class="badge-wrap hidden"><span class="badge"></span></div><div class="promo hidden"></div>`;
+      <div class="badge-wrap hidden"><span class="badge"></span></div><div class="ghostpc hidden"></div>
+      <div class="callout hidden"><span class="co-icon"></span><span class="co-text"></span></div><div class="promo hidden"></div>`;
     this.sqs = el.querySelector('.sqs'); this.pcs = el.querySelector('.pcs');
     this.svg = el.querySelector('.arrows g'); this.badgeEl = el.querySelector('.badge-wrap'); this.promoEl = el.querySelector('.promo');
+    this.ghostEl = el.querySelector('.ghostpc'); this.coEl = el.querySelector('.callout'); this.ghost = null;
     this.buildSquares();
     el.addEventListener('pointerdown', e => this.down(e));
     el.addEventListener('pointermove', e => this.move(e));
@@ -52,7 +54,7 @@ export class Board {
     this.pcs.querySelectorAll('.pc').forEach(el => el.classList.add('snap'));
     for (const [sq, el] of this.pieces) this.place(el, sq);
     requestAnimationFrame(() => this.pcs.querySelectorAll('.snap').forEach(el => el.classList.remove('snap')));
-    this.applyHighlights(); this.drawArrows(); this.drawBadge();
+    this.applyHighlights(); this.drawArrows(); this.drawBadge(); this.drawGhost();
   }
 
   parseFen(fen) {
@@ -72,6 +74,7 @@ export class Board {
   setPosition(fen, o = {}) {
     const want = this.parseFen(fen);
     const m = o.move;
+    let movedEl = null;
     if (m) {
       const from = o.reverse ? m.to : m.from, to = o.reverse ? m.from : m.to;
       const el = this.pieces.get(from);
@@ -83,7 +86,7 @@ export class Board {
         }
         this.pieces.delete(from);
         const old = this.pieces.get(to); if (old && old !== el) old.remove();
-        this.pieces.set(to, el); this.place(el, to);
+        this.pieces.set(to, el); this.place(el, to); movedEl = el;
         if (!o.reverse) {
           clearTimeout(el._land);
           el._land = setTimeout(() => { el.classList.add('land'); setTimeout(() => el.classList.remove('land'), 220); }, el.classList.contains('snap') ? 0 : 160);
@@ -109,6 +112,9 @@ export class Board {
       this.place(el, sq); this.pcs.appendChild(el); this.pieces.set(sq, el);
     }
     this.position = want;
+    if (!o.ghost) this.pcs.querySelectorAll('.pc.ghost').forEach(e => e.classList.remove('ghost'));
+    else if (movedEl) movedEl.classList.add('ghost');
+    this.el.classList.toggle('scenario', !!o.ghost);
     this.hl = { last: o.lastMove ? [o.lastMove.from, o.lastMove.to] : [], check: o.check || null };
     this.deselect();
     this.applyHighlights();
@@ -210,6 +216,25 @@ export class Board {
       const cx2 = x2 + .5 - dx / L * .35, cy2 = y2 + .5 - dy / L * .35;
       return `<line x1="${cx1}" y1="${cy1}" x2="${cx2}" y2="${cy2}" stroke="${a.color}" stroke-width=".17" stroke-linecap="round" marker-end="url(#ah)" opacity=".85"/>`;
     }).join('');
+  }
+
+  // Pièce fantôme : copie translucide de la pièce de `from` posée sur `to`
+  setGhost(g) { this.ghost = g; this.drawGhost(); }
+  drawGhost() {
+    const g = this.ghost, p = g && (g.piece || this.position.get(g.from));
+    this.ghostEl.classList.toggle('hidden', !p);
+    if (!p) return;
+    this.ghostEl.className = `ghostpc pc piece ${NAMES[g.promotion || p.type]} ${p.color === 'w' ? 'white' : 'black'}`;
+    this.place(this.ghostEl, g.to);
+  }
+
+  // Annonce animée au centre de l'échiquier
+  callout(text, icon = '') {
+    const c = this.coEl;
+    c.querySelector('.co-icon').textContent = icon;
+    c.querySelector('.co-text').textContent = text;
+    c.classList.remove('hidden', 'show'); void c.offsetWidth; c.classList.add('show');
+    clearTimeout(this._co); this._co = setTimeout(() => c.classList.add('hidden'), 1600);
   }
 
   setBadge(b) { this.badge = b; this.drawBadge(); }
