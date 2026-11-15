@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#262421">
+<title>Échecs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E♞%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="lib/pieces.css">
+<link rel="stylesheet" href="css/style.css">
+<script src="lib/peerjs.min.js" defer></script>
+<script type="module" src="js/app.js"></script>
+</head>
+<body data-theme="bois">
+<header class="topbar">
+  <button class="brand" data-act="home"><span class="logo">♞</span> Échecs</button>
+  <div class="top-right">
+    <button class="icon-btn" id="btnSound" data-act="toggleSound" title="Son">🔊</button>
+    <span class="chip" id="eloChip"></span>
+  </div>
+</header>
+
+<main>
+  <section id="home" class="screen">
+    <div class="home-grid">
+      <div class="card profile">
+        <span class="avatar big" id="meAvatar"></span>
+        <div class="pinfo">
+          <input id="nameInput" maxlength="16" aria-label="Pseudo" title="Clique pour changer ton pseudo">
+          <div class="elo-big"><span id="eloBig"></span> <small>Elo</small></div>
+          <div class="stats" id="stats"></div>
+        </div>
+        <canvas id="eloSpark" height="40"></canvas>
+      </div>
+
+      <div class="card settings">
+        <h3>Cadence</h3><div class="chips" id="tcChips"></div>
+        <h3>Ta couleur</h3><div class="chips" id="colorChips"></div>
+        <h3>Plateau</h3><div class="chips" id="themeChips"></div>
+      </div>
+
+      <div class="card friend">
+        <h2>👥 Défier un ami</h2>
+        <p class="muted">Crée un lien privé et envoie-le (WhatsApp, SMS…). Partie en direct, non classée.</p>
+        <button class="btn primary wide" data-act="host">Créer un lien de défi</button>
+      </div>
+
+      <div class="card bots">
+        <h2>🤖 Jouer contre un bot</h2>
+        <p class="muted">Parties classées : ton Elo évolue à chaque partie.</p>
+        <div class="bot-grid" id="botGrid"></div>
+      </div>
+    </div>
+    <footer class="foot"><a href="credits.html">Crédits &amp; licences</a></footer>
+  </section>
+
+  <section id="game" class="screen hidden">
+    <div class="game-layout">
+      <div class="board-col">
+        <div class="pbar" id="barTop"></div>
+        <div class="board-row">
+          <div class="evalbar hidden" id="evalBar"><div class="fill" id="evalFill"></div><span id="evalTxt"></span></div>
+          <div id="board"></div>
+        </div>
+        <div class="pbar" id="barBottom"></div>
+      </div>
+      <aside class="side">
+        <div class="actions" id="actions"></div>
+        <div class="card review hidden" id="review"></div>
+        <div class="card movecard">
+          <div class="moves" id="moves"></div>
+          <div class="nav">
+            <button data-act="first" title="Début">⏮</button>
+            <button data-act="prev" title="Précédent">◀</button>
+            <button data-act="next" title="Suivant">▶</button>
+            <button data-act="last" title="Fin">⏭</button>
+            <button data-act="flip" title="Retourner l'échiquier">⇅</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<div class="modal hidden" id="modal"><div class="modal-box" id="modalBox"></div></div>
+<div class="toast" id="toast"></div>
+</body>
+</html>
