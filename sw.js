@@ -1,5 +1,5 @@
 // Service worker : jeu hors ligne + mise à jour automatique (réseau d'abord pour le code)
-const V = 'echecs-v2';
+const V = 'echecs-v3';
 const CORE = ['./', 'index.html', 'credits.html', 'css/style.css', 'lib/pieces.css', 'lib/chess.js', 'lib/peerjs.min.js',
   'lib/stockfish-18-lite-single.js', 'lib/stockfish-18-lite-single.wasm', 'js/app.js', 'js/board.js', 'js/engine.js',
   'js/analysis.js', 'js/sound.js', 'js/online.js', 'js/rating.js', 'js/fx.js', 'js/puzzles.js', 'data/puzzles.json',

@@ -165,7 +165,7 @@ body[data-theme="bois"] .sq.dark { background: var(--dark) linear-gradient(115de
 .pcs { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 .pc {
   position: absolute; left: 0; top: 0; width: 12.5%; height: 12.5%; background-size: cover;
-  transition: transform .18s cubic-bezier(.25,.8,.35,1); will-change: transform;
+  transition: translate .18s cubic-bezier(.25,.8,.35,1); will-change: translate;
   filter: drop-shadow(0 2px 1.5px rgba(0,0,0,.35));
 }
 .pc.snap { transition: none; }

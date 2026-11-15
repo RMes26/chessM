@@ -33,7 +33,7 @@ export class Board {
     const r = this.el.getBoundingClientRect();
     return this.sqAt(Math.floor((e.clientX - r.left) / r.width * 8), Math.floor((e.clientY - r.top) / r.height * 8));
   }
-  place(el, sq) { const [x, y] = this.xy(sq); el.style.transform = `translate(${x * 100}%,${y * 100}%)`; }
+  place(el, sq) { const [x, y] = this.xy(sq); el.style.translate = `${x * 100}% ${y * 100}%`; }
 
   buildSquares() {
     let h = '';
@@ -156,7 +156,7 @@ export class Board {
     d.moved = true;
     const r = this.el.getBoundingClientRect(), s = r.width / 8;
     d.el.classList.add('dragging');
-    d.el.style.transform = `translate(${e.clientX - r.left - s / 2}px,${e.clientY - r.top - s / 2}px)`;
+    d.el.style.translate = `${e.clientX - r.left - s / 2}px ${e.clientY - r.top - s / 2}px`;
   }
   up(e) {
     const d = this.drag; if (!d) return;
